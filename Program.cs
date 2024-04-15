@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -15,37 +16,38 @@ class Program
     private const int SPIF_UPDATEINIFILE = 0x01;
     private const int SPIF_SENDCHANGE = 0x02;
 
-    private const string ApiKey = "k2NvVteKsYaaWAWmVla6hKQ6cA76595v"; // Your API key here
+    private const string ApiKey = "aOAqwTWJ3bqA6D7JEqPTrgaSiwB97J9g"; // Twój klucz API
 
     private static readonly HttpClient client = new HttpClient();
     private static readonly List<string> downloadedWallpapers = new List<string>();
 
     static async Task Main(string[] args)
     {
-        #region//zmienne do tapet
         while (true)
         {
-            Console.WriteLine("Choose wallpaper type:");
+            Console.WriteLine("Wybierz typ tapety:");
             Console.WriteLine("1. Anime");
-            Console.WriteLine("2. Forest");
-            Console.WriteLine("3. City and People");
-            Console.WriteLine("4. Select");
-            Console.Write("Enter option (1/2/3/4): ");
+            Console.WriteLine("2. Las");
+            Console.WriteLine("3. Miasto i ludzie");
+            Console.WriteLine("4. Wybierz");
+            Console.WriteLine("5. Kolor");
+            Console.Write("Wprowadź opcję (1/2/3/4/5): ");
 
             string choice = Console.ReadLine();
 
             string category = "";
             string tag = "";
             string excludeTag = "";
+            string color = "";
             switch (choice)
             {
                 case "1":
-                    category = "101";
+                    category = "010";
                     tag = "anime";
                     break;
                 case "2":
                     category = "111";
-                    tag = "Forest";
+                    tag = "forest";
                     excludeTag = "anime";
                     break;
                 case "3":
@@ -54,49 +56,53 @@ class Program
                     excludeTag = "anime";
                     break;
                 case "4":
-                    Console.WriteLine("Tag if you use more than 1 use ","");
-                    var input = Console.ReadLine(); 
+                    Console.WriteLine("Wprowadź tagi (jeśli używasz więcej niż jednego, oddziel przecinkiem): ");
+                    tag = Console.ReadLine();
                     category = "100";
-                    tag = input;
+                    break;
+                case "5":
+                    Console.WriteLine("Wprowadź kolor (np. 0066cc, cc0000, 336600): ");
+                    color = Console.ReadLine();
+                    category = "100";
                     break;
                 default:
-                    Console.WriteLine("Invalid choice. Please choose again.");
+                    Console.WriteLine("Niepoprawny wybór. Wybierz ponownie.");
                     continue;
             }
-            int a;
-            Console.WriteLine("purity: 1-SFW(safe for Work) 2-NSFW(NO SAFE)");
-            int purity = int.Parse(Console.ReadLine());
-            if(purity == 2)
+
+            int purity = GetPurity();
+            await SetRandomWallpaper(category, tag, excludeTag, color, purity);
+
+            Console.WriteLine("Tapeta została ustawiona. Naciśnij Enter, aby kontynuować...");
+            Console.ReadLine();
+        }
+    }
+
+    private static int GetPurity()
+    {
+        Console.WriteLine("Czystość: 1 - bezpieczna dla pracy, 2 - NSFW (niebezpieczna)");
+        int purity = int.Parse(Console.ReadLine());
+        if (purity == 2)
+        {
+            Console.WriteLine("NSFW! Wprowadź 1, aby wyjść, lub 9, aby kontynuować: ");
+            int choice = int.Parse(Console.ReadLine());
+            if (choice == 9)
             {
-                Console.WriteLine("NSFW ! CLICK 1-TO EXIT CLICK 9 TO GO!! ");
-                int purity2 = int.Parse(Console.ReadLine());
-                if(purity2 == 9)
-                {
-                    a = 111;
-                }
-                else
-                {
-                    a = 100;
-                }
+                return 010;
             }
             else
             {
-                 a = 100;
+                return 100;
             }
-
-
-            await SetRandomWallpaper(category, tag, excludeTag, a);
-
-
-            Console.WriteLine("Wallpaper has been set. Press Enter to continue...");
-            Console.ReadLine();
         }
-        #endregion
+        else
+        {
+            return 100;
+        }
     }
 
-    private static async Task SetRandomWallpaper(string category, string tag, string excludeTag, int purity)
+    private static async Task SetRandomWallpaper(string category, string tag, string excludeTag, string color, int purity)
     {
-        #region//ustawianie tapety
         string apiUrl = $"https://wallhaven.cc/api/v1/search?apikey={ApiKey}&seed={GenerateSeed()}";
 
         if (!string.IsNullOrEmpty(category))
@@ -114,6 +120,11 @@ class Program
             apiUrl += $"&-q={excludeTag}";
         }
 
+        if (!string.IsNullOrEmpty(color))
+        {
+            apiUrl += $"&colors={color}";
+        }
+
         try
         {
             HttpResponseMessage response = await client.GetAsync(apiUrl);
@@ -126,7 +137,7 @@ class Program
 
                 if (data.data.Count == 0)
                 {
-                    Console.WriteLine("No suitable wallpapers found for the selected type and tag.");
+                    Console.WriteLine("Nie znaleziono odpowiednich tapet dla wybranego typu i tagu.");
                     return;
                 }
 
@@ -141,11 +152,11 @@ class Program
                     imageUrl = data.data[index].path;
 
                     attemptCount++;
-                } while (downloadedWallpapers.Contains(imageUrl) && attemptCount < 5); // Limit attempts to avoid infinite loop
+                } while (downloadedWallpapers.Contains(imageUrl) && attemptCount < 5); // Ograniczenie liczby prób, aby uniknąć nieskończonej pętli
 
                 if (attemptCount >= 5)
                 {
-                    Console.WriteLine("Failed to find a unique wallpaper after multiple attempts.");
+                    Console.WriteLine("Nie udało się znaleźć unikalnej tapety po wielu próbach.");
                     return;
                 }
 
@@ -168,21 +179,19 @@ class Program
                 }
                 else
                 {
-                    Console.WriteLine("An error occurred while downloading the image.");
+                    Console.WriteLine("Wystąpił błąd podczas pobierania obrazu.");
                 }
             }
             else
             {
-                Console.WriteLine("Failed to fetch data from the API.");
+                Console.WriteLine("Nie udało się pobrać danych z API.");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"An error occurred: {ex.Message}");
+            Console.WriteLine($"Wystąpił błąd: {ex.Message}");
         }
-        #endregion
     }
-
 
     private static void SetWallpaper(string path)
     {
