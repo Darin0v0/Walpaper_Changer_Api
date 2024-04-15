@@ -25,13 +25,13 @@ class Program
     {
         while (true)
         {
-            Console.WriteLine("Wybierz typ tapety:");
+            Console.WriteLine("Select One:");
             Console.WriteLine("1. Anime");
-            Console.WriteLine("2. Las");
-            Console.WriteLine("3. Miasto i ludzie");
-            Console.WriteLine("4. Wybierz");
-            Console.WriteLine("5. Kolor");
-            Console.Write("Wprowadź opcję (1/2/3/4/5): ");
+            Console.WriteLine("2. Forest");
+            Console.WriteLine("3. City i Peoples");
+            Console.WriteLine("4. Set Tag:");
+            Console.WriteLine("5. Color");
+            Console.Write("Input?: (1/2/3/4/5): ");
 
             string? choice = Console.ReadLine();
 
@@ -56,35 +56,35 @@ class Program
                     excludeTag = "anime";
                     break;
                 case "4":
-                    Console.WriteLine("Wprowadź tagi (jeśli używasz więcej niż jednego, oddziel przecinkiem): ");
-                    tag = Console.ReadLine();
+                    Console.WriteLine("Set tag (if you use mor than one use " " spaceber));
+                    tag = Console.ReadLine(); 
                     category = "100";
                     break;
                 case "5":
-                    Console.WriteLine("Wprowadź kolor (np. 0066cc, cc0000, 336600): ");
+                    Console.WriteLine("Input?: Color (np. 0066cc, cc0000, 336600): ");
                     color = Console.ReadLine();
                     category = "100";
                     break;
                 default:
-                    Console.WriteLine("Niepoprawny wybór. Wybierz ponownie.");
+                    Console.WriteLine("Try Again(E    rr     oo     r)");
                     continue;
             }
 
             int purity = GetPurity();
             await SetRandomWallpaper(category, tag, excludeTag, color, purity);
 
-            Console.WriteLine("Tapeta została ustawiona. Naciśnij Enter, aby kontynuować...");
+            Console.WriteLine("Tapet Set...");
             Console.ReadLine();
         }
     }
 
     private static int GetPurity()
     {
-        Console.WriteLine("Czystość: 1 - bezpieczna dla pracy, 2 - NSFW (niebezpieczna)");
+        Console.WriteLine("Purity: 1 - SFW, 2 - NSFW (Achtung)");
         int purity = int.Parse(Console.ReadLine());
         if (purity == 2)
         {
-            Console.WriteLine("NSFW! Wprowadź 1, aby wyjść, lub 6, aby kontynuować: ");
+            Console.WriteLine("NSFW! input 1, to leve or 6 to go: ");
             int choice = int.Parse(Console.ReadLine());
             if (choice == 6)
             {
@@ -137,7 +137,7 @@ class Program
 
                 if (data.data.Count == 0)
                 {
-                    Console.WriteLine("Nie znaleziono odpowiednich tapet dla wybranego typu i tagu.");
+                    Console.WriteLine("Error.Tag Dont exisit ");
                     return;
                 }
 
@@ -156,7 +156,7 @@ class Program
 
                 if (attemptCount >= 5)
                 {
-                    Console.WriteLine("Nie udało się znaleźć unikalnej tapety po wielu próbach.");
+                    Console.WriteLine("Tapet dont exist.");
                     return;
                 }
 
@@ -179,17 +179,17 @@ class Program
                 }
                 else
                 {
-                    Console.WriteLine("Wystąpił błąd podczas pobierania obrazu.");
+                    Console.WriteLine("error in photos set");
                 }
             }
             else
             {
-                Console.WriteLine("Nie udało się pobrać danych z API.");
+                Console.WriteLine("error API.");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Wystąpił błąd: {ex.Message}");
+            Console.WriteLine($"error : {ex.Message}");
         }
     }
 
