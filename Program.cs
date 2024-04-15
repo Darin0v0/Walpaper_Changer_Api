@@ -96,6 +96,7 @@ class Program
 
     private static async Task SetRandomWallpaper(string category, string tag, string excludeTag, int purity)
     {
+        #region//ustawianie tapety
         string apiUrl = $"https://wallhaven.cc/api/v1/search?apikey={ApiKey}&seed={GenerateSeed()}";
 
         if (!string.IsNullOrEmpty(category))
@@ -179,6 +180,7 @@ class Program
         {
             Console.WriteLine($"An error occurred: {ex.Message}");
         }
+        #endregion
     }
 
 
