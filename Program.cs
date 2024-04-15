@@ -33,12 +33,12 @@ class Program
             Console.WriteLine("5. Kolor");
             Console.Write("Wprowadź opcję (1/2/3/4/5): ");
 
-            string choice = Console.ReadLine();
+            string? choice = Console.ReadLine();
 
-            string category = "";
-            string tag = "";
-            string excludeTag = "";
-            string color = "";
+            string? category = "";
+            string? tag = "";
+            string? excludeTag = "";
+            string? color = "";
             switch (choice)
             {
                 case "1":
@@ -84,11 +84,11 @@ class Program
         int purity = int.Parse(Console.ReadLine());
         if (purity == 2)
         {
-            Console.WriteLine("NSFW! Wprowadź 1, aby wyjść, lub 9, aby kontynuować: ");
+            Console.WriteLine("NSFW! Wprowadź 1, aby wyjść, lub 6, aby kontynuować: ");
             int choice = int.Parse(Console.ReadLine());
-            if (choice == 9)
+            if (choice == 6)
             {
-                return 010;
+                return 111;
             }
             else
             {
@@ -107,7 +107,7 @@ class Program
 
         if (!string.IsNullOrEmpty(category))
         {
-            apiUrl += $"&categories={category}&purity={purity}&sorting=toplist&order=desc&topRange=1y&atleast=1920x1080";
+            apiUrl += $"&categories={category}&purity={purity}&sorting=toplist&order=desc&topRange=6M&atleast=1920x1080";
         }
 
         if (!string.IsNullOrEmpty(tag))
