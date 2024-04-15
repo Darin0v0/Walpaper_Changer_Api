@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -22,6 +22,7 @@ class Program
 
     static async Task Main(string[] args)
     {
+        #region//zmienne do tapet
         while (true)
         {
             Console.WriteLine("Choose wallpaper type:");
@@ -62,21 +63,44 @@ class Program
                     Console.WriteLine("Invalid choice. Please choose again.");
                     continue;
             }
+            int a;
+            Console.WriteLine("purity: 1-SFW(safe for Work) 2-NSFW(NO SAFE)");
+            int purity = int.Parse(Console.ReadLine());
+            if(purity == 2)
+            {
+                Console.WriteLine("NSFW ! CLICK 1-TO EXIT CLICK 9 TO GO!! ");
+                int purity2 = int.Parse(Console.ReadLine());
+                if(purity2 == 9)
+                {
+                    a = 111;
+                }
+                else
+                {
+                    a = 100;
+                }
+            }
+            else
+            {
+                 a = 100;
+            }
 
-            await SetRandomWallpaper(category, tag, excludeTag);
+
+            await SetRandomWallpaper(category, tag, excludeTag, a);
+
 
             Console.WriteLine("Wallpaper has been set. Press Enter to continue...");
             Console.ReadLine();
         }
+        #endregion
     }
 
-    private static async Task SetRandomWallpaper(string category, string tag, string excludeTag)
+    private static async Task SetRandomWallpaper(string category, string tag, string excludeTag, int purity)
     {
         string apiUrl = $"https://wallhaven.cc/api/v1/search?apikey={ApiKey}&seed={GenerateSeed()}";
 
         if (!string.IsNullOrEmpty(category))
         {
-            apiUrl += $"&categories={category}&purity=100&sorting=toplist&order=desc&topRange=1y&atleast=1920x1080";
+            apiUrl += $"&categories={category}&purity={purity}&sorting=toplist&order=desc&topRange=1y&atleast=1920x1080";
         }
 
         if (!string.IsNullOrEmpty(tag))
@@ -156,6 +180,7 @@ class Program
             Console.WriteLine($"An error occurred: {ex.Message}");
         }
     }
+
 
     private static void SetWallpaper(string path)
     {
