@@ -42,18 +42,18 @@ class Program
             switch (choice)
             {
                 case "1":
-                    category = "101";
-                    tag = "anime";
+                    category = "010";
+                    tag = "Anime";
+     //               excludeTag = "";
                     break;
                 case "2":
                     category = "100";
                     tag = "forest";
-                    excludeTag = "anime";
+                    excludeTag = "Anime";
                     break;
                 case "3":
                     category = "111";
                     tag = "city";
-                    excludeTag = "anime";
                     break;
                 case "4":
                     Console.WriteLine("Wprowadź tagi (jeśli używasz więcej niż jednego, odziej je ' ' spacją. max:4 tagi): ");
@@ -103,7 +103,7 @@ class Program
             }
             else
             {
-                return 110;
+                return 010;
             }
         }
     }
@@ -114,17 +114,20 @@ class Program
 
         if (!string.IsNullOrEmpty(category))
         {
-            apiUrl += $"&categories={category}&purity={purity}&sorting=toplist&order=desc&topRange=1y&ratios=16x9";
+            apiUrl += $"&categories={category}&purity={purity}&sorting=toplist&ratios=16x9";
         }
 
         if (!string.IsNullOrEmpty(tag))
         {
-            apiUrl += $"&q={tag}";
-        }
-
-        if (!string.IsNullOrEmpty(excludeTag))
-        {
-            apiUrl += $"&-q={excludeTag}";
+            if(!string.IsNullOrEmpty(excludeTag)) 
+            {
+                apiUrl += $"&q=+{tag}-{excludeTag}";
+            }
+            else
+            {
+            apiUrl += $"&q=+{tag}";
+            }
+            
         }
 
         if (!string.IsNullOrEmpty(color))
