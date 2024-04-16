@@ -31,7 +31,7 @@ class Program
             Console.WriteLine("3. Miasto(City)");
             Console.WriteLine("4. Wybierz(select) Tag");
             Console.WriteLine("5. Kolor(color)");
-            Console.Write("Wprowadź opcję (1/2/3/4/5): ");
+            Console.Write("Wprowadź opcję(select) (1/2/3/4/5): ");
 
             string? choice = Console.ReadLine();
 
@@ -44,7 +44,7 @@ class Program
                 case "1":
                     category = "010";
                     tag = "Anime";
-     //               excludeTag = "";
+                 // excludeTag = "";
                     break;
                 case "2":
                     category = "100";
@@ -114,7 +114,7 @@ class Program
 
         if (!string.IsNullOrEmpty(category))
         {
-            apiUrl += $"&categories={category}&purity={purity}&sorting=toplist&ratios=16x9";
+            apiUrl += $"&categories={category}&purity={purity}&sorting=toplist&order=desc&atlest=1980x1080%topRange=1y&ratios=16x9";
         }
 
         if (!string.IsNullOrEmpty(tag))
@@ -150,9 +150,7 @@ class Program
                     Console.WriteLine("Nie znaleziono odpowiednich tapet dla wybranego typu i tagu.");
                     return;
                 }
-
                 Random random = new Random();
-
                 string imageUrl = "";
                 int attemptCount = 0;
 
@@ -160,7 +158,6 @@ class Program
                 {
                     int index = random.Next(0, Math.Min(data.data.Count, 150));
                     imageUrl = data.data[index].path;
-
                     attemptCount++;
                 } while (downloadedWallpapers.Contains(imageUrl) && attemptCount < 5); // Ograniczenie liczby prób, aby uniknąć nieskończonej pętli
 
@@ -183,7 +180,6 @@ class Program
                         {
                             await stream.CopyToAsync(tempFileStream);
                         }
-
                         SetWallpaper(tempFilePath);
                     }
                 }
