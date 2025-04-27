@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "VCfmIse0sNJnTsbydJ9jenS2wBxZwXt8OxC0pshzauui9VgFAUKyDe2V03nE2Vu8ShxL+SCxhckzuV9Sk9bUOQ==",
+  "success": true,
+  "projectFilePath": "/home/dawid/Dokumenty/c#/Walpaper_Changer_Api-main/prokekt.csproj",
+  "expectedPackageFiles": [
+    "/home/dawid/.nuget/packages/consolegui/1.4.2/consolegui.1.4.2.nupkg.sha512",
+    "/home/dawid/.nuget/packages/newtonsoft.json/13.0.3/newtonsoft.json.13.0.3.nupkg.sha512"
+  ],
+  "logs": []
+}
