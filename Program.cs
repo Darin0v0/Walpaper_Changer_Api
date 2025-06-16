@@ -12,7 +12,6 @@ using Newtonsoft.Json.Linq;
 
 class Program
 {
-    
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
 
@@ -22,13 +21,14 @@ class Program
 
     private const string ApiKey = "aOAqwTWJ3bqA6D7JEqPTrgaSiwB97J9g";
     private const string BaseApiUrl = "https://wallhaven.cc/api/v1/";
-private const string DefaultWindowsWallpaperUrl = "https://w.wallhaven.cc/full/lq/wallhaven-lqye5q.png";
+    private const string DefaultWindowsWallpaperUrl = "https://w.wallhaven.cc/full/lq/wallhaven-lqye5q.png";
     private const string DefaultLinuxWallpaperUrl = "https://w.wallhaven.cc/full/ey/wallhaven-eyj8dk.png";
     private static readonly HttpClient client = new HttpClient();
     private static readonly List<string> downloadedWallpapers = new List<string>();
     private static bool isWindows = true;
     private static int currentPage = 1;
     private static string currentSeed = "";
+    private static string wallpaperCachePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".wallpaper_cache");
 
     static async Task Main(string[] args)
     {
@@ -36,6 +36,12 @@ private const string DefaultWindowsWallpaperUrl = "https://w.wallhaven.cc/full/l
         Console.WriteLine("🌄 Wallpaper Changer");
         Console.WriteLine("===================");
         
+        // Create cache directory if it doesn't exist
+        if (!Directory.Exists(wallpaperCachePath))
+        {
+            Directory.CreateDirectory(wallpaperCachePath);
+        }
+
         await SelectOperatingSystem();
 
         while (true)
@@ -279,21 +285,34 @@ private const string DefaultWindowsWallpaperUrl = "https://w.wallhaven.cc/full/l
             Console.WriteLine($"Resolution: {wallpaper.Resolution}");
             Console.WriteLine($"URL: {imageUrl}");
 
-            string tempFilePath = Path.Combine(Path.GetTempPath(), $"wallhaven-{wallpaper.Id}.jpg");
+            // Save to cache directory instead of temp
+            string wallpaperPath = Path.Combine(wallpaperCachePath, $"wallhaven-{wallpaper.Id}.jpg");
             
             using (var response = await client.GetAsync(imageUrl))
             {
                 response.EnsureSuccessStatusCode();
                 
                 using (var stream = await response.Content.ReadAsStreamAsync())
-                using (var fileStream = new FileStream(tempFilePath, FileMode.Create))
+                using (var fileStream = new FileStream(wallpaperPath, FileMode.Create))
                 {
                     await stream.CopyToAsync(fileStream);
                 }
             }
             
-            SetWallpaper(tempFilePath);
+            SetWallpaper(wallpaperPath);
             downloadedWallpapers.Add(imageUrl);
+            
+            // For Linux: Create a symlink to the current wallpaper for persistence
+            if (!isWindows)
+            {
+                string currentWallpaperLink = Path.Combine(wallpaperCachePath, "current_wallpaper.jpg");
+                if (File.Exists(currentWallpaperLink))
+                {
+                    File.Delete(currentWallpaperLink);
+                }
+                File.CreateSymbolicLink(currentWallpaperLink, wallpaperPath);
+            }
+            
             Console.WriteLine("Wallpaper set successfully!");
         }
         catch (Exception ex)
@@ -309,19 +328,31 @@ private const string DefaultWindowsWallpaperUrl = "https://w.wallhaven.cc/full/l
             string defaultUrl = isWindows ? DefaultWindowsWallpaperUrl : DefaultLinuxWallpaperUrl;
             Console.WriteLine($"\nDownloading default wallpaper from: {defaultUrl}");
 
-            string tempFilePath = Path.Combine(Path.GetTempPath(), isWindows ? "windows_default.jpg" : "linux_default.jpg");
+            string wallpaperPath = Path.Combine(wallpaperCachePath, isWindows ? "windows_default.jpg" : "linux_default.jpg");
             
             using (var response = await client.GetAsync(defaultUrl))
             {
                 if (response.IsSuccessStatusCode)
                 {
                     using (var stream = await response.Content.ReadAsStreamAsync())
-                    using (var fileStream = new FileStream(tempFilePath, FileMode.Create))
+                    using (var fileStream = new FileStream(wallpaperPath, FileMode.Create))
                     {
                         await stream.CopyToAsync(fileStream);
                     }
                     
-                    SetWallpaper(tempFilePath);
+                    SetWallpaper(wallpaperPath);
+                    
+                    // For Linux: Update the symlink
+                    if (!isWindows)
+                    {
+                        string currentWallpaperLink = Path.Combine(wallpaperCachePath, "current_wallpaper.jpg");
+                        if (File.Exists(currentWallpaperLink))
+                        {
+                            File.Delete(currentWallpaperLink);
+                        }
+                        File.CreateSymbolicLink(currentWallpaperLink, wallpaperPath);
+                    }
+                    
                     Console.WriteLine("Default wallpaper set successfully.");
                 }
                 else
@@ -367,10 +398,19 @@ private const string DefaultWindowsWallpaperUrl = "https://w.wallhaven.cc/full/l
                 {
                     ExecuteCommand($"gsettings set org.gnome.desktop.background picture-uri \"file://{path}\"");
                     ExecuteCommand($"gsettings set org.gnome.desktop.background picture-uri-dark \"file://{path}\"");
+                    
+                    // Also save to a file that can be loaded at startup
+                    File.WriteAllText(Path.Combine(wallpaperCachePath, "last_wallpaper.txt"), path);
                 }
                 else if (desktopSession.Contains("xfce"))
                 {
                     ExecuteCommand($"xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -s \"{path}\"");
+                    
+                    // Create a script to restore the wallpaper
+                    string restoreScript = Path.Combine(wallpaperCachePath, "restore_wallpaper.sh");
+                    File.WriteAllText(restoreScript, 
+                        $"#!/bin/bash\nxfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -s \"{path}\"");
+                    ExecuteCommand($"chmod +x {restoreScript}");
                 }
                 else if (desktopSession.Contains("kde"))
                 {
@@ -381,10 +421,17 @@ private const string DefaultWindowsWallpaperUrl = "https://w.wallhaven.cc/full/l
                                   $"d.wallpaperPlugin = \\\"org.kde.image\\\";" +
                                   $"d.currentConfigGroup = Array(\\\"Wallpaper\\\", \\\"org.kde.image\\\", \\\"General\\\");" +
                                   $"d.writeConfig(\\\"Image\\\", \\\"file:{path}\\\")}}\"");
+                    
+                    // Save the command to restore the wallpaper
+                    File.WriteAllText(Path.Combine(wallpaperCachePath, "last_kde_wallpaper.txt"), path);
                 }
                 else
                 {
+                    // For other DEs or window managers, use feh and create a .fehbg file for persistence
                     ExecuteCommand($"feh --bg-fill \"{path}\"");
+                    File.WriteAllText(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".fehbg"), 
+                        $"#!/bin/sh\nfeh --no-fehbg --bg-fill '{path}'");
+                    ExecuteCommand($"chmod +x {Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".fehbg")}");
                 }
             }
             catch (Exception ex)
