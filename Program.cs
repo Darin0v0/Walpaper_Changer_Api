@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Pastel;
 
 class Program
 {
@@ -21,39 +22,53 @@ class Program
 
     private const string ApiKey = "aOAqwTWJ3bqA6D7JEqPTrgaSiwB97J9g";
     private const string BaseApiUrl = "https://wallhaven.cc/api/v1/";
-    private const string DefaultWindowsWallpaperUrl = "https://w.wallhaven.cc/full/lq/wallhaven-lqye5q.png";
-    private const string DefaultLinuxWallpaperUrl = "https://w.wallhaven.cc/full/ey/wallhaven-eyj8dk.png";
     private static readonly HttpClient client = new HttpClient();
-    private static readonly List<string> downloadedWallpapers = new List<string>();
+    private static readonly List<WallpaperHistoryItem> wallpaperHistory = new List<WallpaperHistoryItem>();
     private static bool isWindows = true;
     private static int currentPage = 1;
-    private static string currentSeed = "";
-    private static string wallpaperCachePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".wallpaper_cache");
+    private static int totalPages = 1;
+    private static string wallpaperCachePath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 
+        ".wallpaper_cache"
+    );
+    private static SearchParameters currentSearchParams = new SearchParameters();
+    private static List<Wallpaper> currentWallpapers = new List<Wallpaper>();
+    private static readonly Random random = new Random();
+    private static string currentWallpaperPath = "";
+    private static string currentTheme = "ocean";
 
     static async Task Main(string[] args)
     {
         Console.OutputEncoding = Encoding.UTF8;
-        Console.WriteLine("🌄 Wallpaper Changer");
-        Console.WriteLine("===================");
+        Console.CancelKeyPress += (sender, e) => {
+            Console.WriteLine("\n\nExiting gracefully...");
+            Environment.Exit(0);
+        };
+
+        PrintBanner();
         
-        // Create cache directory if it doesn't exist
         if (!Directory.Exists(wallpaperCachePath))
         {
             Directory.CreateDirectory(wallpaperCachePath);
         }
 
-        await SelectOperatingSystem();
+        LoadHistory();
+        AutoDetectOS();
+        await CheckForUpdates();
 
         while (true)
         {
-            Console.WriteLine("\nMain Menu:");
-            Console.WriteLine("1. Search Wallpapers from Wallhaven");
-            Console.WriteLine("2. Set Default System Wallpaper");
-            Console.WriteLine("3. View Search History");
-            Console.WriteLine("4. Exit");
-            Console.Write("Choose option (1-4): ");
+            Console.WriteLine("\n" + "MAIN MENU".Pastel(GetThemeColor("primary")).PastelBg(GetThemeColor("background")));
+            Console.WriteLine("1. 🔍 Search Wallpapers".Pastel(GetThemeColor("menu1")));
+            Console.WriteLine("2. 🏞️ Set Default Wallpaper".Pastel(GetThemeColor("menu2")));
+            Console.WriteLine("3. 📜 View History".Pastel(GetThemeColor("menu3")));
+            Console.WriteLine("4. ⚙️ Settings".Pastel(GetThemeColor("menu4")));
+            Console.WriteLine("5. 🎲 Random Wallpaper".Pastel(GetThemeColor("menu5")));
+            Console.WriteLine("6. 🔄 Refresh Current".Pastel(GetThemeColor("menu6")));
+            Console.WriteLine("7. 🚪 Exit".Pastel(GetThemeColor("menu7")));
+            Console.Write("\nChoose option: ".Pastel(GetThemeColor("text")));
 
-            string mainChoice = Console.ReadLine() ?? "1";
+            string mainChoice = Console.ReadLine()?.Trim() ?? "1";
 
             switch (mainChoice)
             {
@@ -64,74 +79,549 @@ class Program
                     await SetDefaultWallpaper();
                     break;
                 case "3":
-                    ShowDownloadHistory();
+                    ShowWallpaperHistory();
                     break;
                 case "4":
+                    await ShowSettings();
+                    break;
+                case "5":
+                    await SetRandomWallpaper();
+                    break;
+                case "6":
+                    RefreshCurrentWallpaper();
+                    break;
+                case "7":
                     return;
                 default:
-                    Console.WriteLine("Invalid choice. Please try again.");
+                    Console.WriteLine("Invalid choice. Please try again.".Pastel(GetThemeColor("error")));
                     break;
             }
         }
     }
 
-    private static async Task SelectOperatingSystem()
+    private static string GetThemeColor(string element)
     {
-        Console.WriteLine("\nSelect your operating system:");
-        Console.WriteLine("1. Windows");
-        Console.WriteLine("2. Linux");
-        Console.Write("Enter option (1/2): ");
+        return currentTheme switch
+        {
+            "ocean" => element switch
+            {
+                "primary" => "#3498db",
+                "background" => "#2c3e50",
+                "menu1" => "#1abc9c",
+                "menu2" => "#9b59b6",
+                "menu3" => "#f1c40f",
+                "menu4" => "#95a5a6",
+                "menu5" => "#e74c3c",
+                "menu6" => "#2ecc71",
+                "menu7" => "#e67e22",
+                "text" => "#ecf0f1",
+                "success" => "#2ecc71",
+                "error" => "#e74c3c",
+                _ => "#ffffff"
+            },
+            "forest" => element switch
+            {
+                "primary" => "#27ae60",
+                "background" => "#1e8449",
+                "menu1" => "#2ecc71",
+                "menu2" => "#16a085",
+                "menu3" => "#f39c12",
+                "menu4" => "#7f8c8d",
+                "menu5" => "#c0392b",
+                "menu6" => "#27ae60",
+                "menu7" => "#d35400",
+                "text" => "#ecf0f1",
+                "success" => "#27ae60",
+                "error" => "#c0392b",
+                _ => "#ffffff"
+            },
+            "sunset" => element switch
+            {
+                "primary" => "#e67e22",
+                "background" => "#d35400",
+                "menu1" => "#e74c3c",
+                "menu2" => "#9b59b6",
+                "menu3" => "#f1c40f",
+                "menu4" => "#95a5a6",
+                "menu5" => "#c0392b",
+                "menu6" => "#e67e22",
+                "menu7" => "#3498db",
+                "text" => "#ecf0f1",
+                "success" => "#e67e22",
+                "error" => "#c0392b",
+                _ => "#ffffff"
+            },
+            _ => "#3498db"
+        };
+    }
+
+    private static void RefreshCurrentWallpaper()
+    {
+        if (!string.IsNullOrEmpty(currentWallpaperPath) && File.Exists(currentWallpaperPath))
+        {
+            SetWallpaperFile(currentWallpaperPath);
+            Console.WriteLine("Current wallpaper refreshed!".Pastel(GetThemeColor("success")));
+        }
+        else
+        {
+            Console.WriteLine("No current wallpaper set".Pastel(GetThemeColor("error")));
+        }
+    }
+
+    private static string? GetAvailableImageViewer()
+    {
+        string[] viewers = {"feh", "imv", "sxiv", "xdg-open"};
         
-        string osChoice = Console.ReadLine() ?? "1";
-        isWindows = (osChoice == "1");
+        foreach (var viewer in viewers)
+        {
+            try
+            {
+                var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "which",
+                        Arguments = viewer,
+                        RedirectStandardOutput = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+                process.Start();
+                process.WaitForExit(500);
+                if (process.ExitCode == 0)
+                    return viewer;
+            }
+            catch { /* ignore */ }
+        }
+        return null;
+    }
+
+    private static void ShowWallpaperPreview(string imageUrl)
+    {
+        if (isWindows)
+        {
+            ShowWallpaperPreviewWindows(imageUrl);
+        }
+        else
+        {
+            ShowWallpaperPreviewLinux(imageUrl);
+        }
+    }
+
+    private static void ShowWallpaperPreviewWindows(string imageUrl)
+    {
+        try
+        {
+            string tempFile = Path.Combine(Path.GetTempPath(), $"wallpreview_{Guid.NewGuid()}.jpg");
+            
+            using (var client = new HttpClient())
+            {
+                var response = client.GetAsync(imageUrl).Result;
+                if (response.IsSuccessStatusCode)
+                {
+                    File.WriteAllBytes(tempFile, response.Content.ReadAsByteArrayAsync().Result);
+                    
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = tempFile,
+                        UseShellExecute = true
+                    });
+                }
+                else
+                {
+                    Console.WriteLine("Could not download image for preview".Pastel(GetThemeColor("error")));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Preview error: {ex.Message}".Pastel(GetThemeColor("error")));
+        }
+    }
+
+    private static void ShowWallpaperPreviewLinux(string imageUrl)
+    {
+        string? viewer = GetAvailableImageViewer();
+        if (viewer == null)
+        {
+            Console.WriteLine("No image viewer found. Install feh, imv or sxiv.".Pastel(GetThemeColor("error")));
+            return;
+        }
+
+        try
+        {
+            string tempFile = Path.Combine(Path.GetTempPath(), $"wallpreview_{Guid.NewGuid()}.jpg");
+            
+            using (var client = new HttpClient())
+            {
+                var response = client.GetAsync(imageUrl).Result;
+                if (response.IsSuccessStatusCode)
+                {
+                    File.WriteAllBytes(tempFile, response.Content.ReadAsByteArrayAsync().Result);
+                }
+                else
+                {
+                    Console.WriteLine("Could not download image for preview".Pastel(GetThemeColor("error")));
+                    return;
+                }
+            }
+
+            string terminal = Environment.GetEnvironmentVariable("TERMINAL") ?? "xterm";
+            string viewerCommand = viewer switch
+            {
+                "feh" => $"feh --scale-down --geometry 800x600 --title 'Wallpaper Preview' \"{tempFile}\"",
+                "imv" => $"imv \"{tempFile}\"",
+                "sxiv" => $"sxiv \"{tempFile}\"",
+                "xdg-open" => $"xdg-open \"{tempFile}\"",
+                _ => $"feh \"{tempFile}\""
+            };
+
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = terminal,
+                    Arguments = $"-e {viewerCommand}",
+                    UseShellExecute = false
+                }
+            };
+            process.Start();
+
+            process.Exited += (sender, e) => 
+            {
+                try { File.Delete(tempFile); } catch { /* ignore */ }
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Preview error: {ex.Message}".Pastel(GetThemeColor("error")));
+        }
+    }
+
+    private static async Task SetDefaultWallpaper()
+    {
+        Console.Write("\nEnter path to default wallpaper: ");
+        string path = Console.ReadLine()?.Trim() ?? "";
+        
+        if (File.Exists(path))
+        {
+            try
+            {
+                SetWallpaperFile(path);
+                Console.WriteLine("Default wallpaper set!".Pastel(GetThemeColor("success")));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error setting wallpaper: {ex.Message}".Pastel(GetThemeColor("error")));
+            }
+        }
+        else
+        {
+            Console.WriteLine("File not found".Pastel(GetThemeColor("error")));
+        }
+    }
+
+    private static void PrintBanner()
+    {
+        Console.Clear();
+        Console.WriteLine();
+        Console.WriteLine(@"███████╗ █████╗ ██╗     ██╗██████╗  █████╗ ███████╗███████╗".Pastel(GetThemeColor("primary")));
+        Console.WriteLine(@"██╔════╝██╔══██╗██║     ██║██╔══██╗██╔══██╗██╔════╝██╔════╝".Pastel(GetThemeColor("primary")));
+        Console.WriteLine(@"█████╗  ███████║██║     ██║██████╔╝███████║███████╗█████╗  ".Pastel(GetThemeColor("primary")));
+        Console.WriteLine(@"██╔══╝  ██╔══██║██║     ██║██╔═══╝ ██╔══██║╚════██║██╔══╝  ".Pastel(GetThemeColor("primary")));
+        Console.WriteLine(@"██║     ██║  ██║███████╗██║██║     ██║  ██║███████║███████╗".Pastel(GetThemeColor("primary")));
+        Console.WriteLine(@"╚═╝     ╚═╝  ╚═╝╚══════╝╚═╝╚═╝     ╚═╝  ╚═╝╚══════╝╚══════╝".Pastel(GetThemeColor("primary")));
+        Console.WriteLine();
+        Console.WriteLine("=".Repeat(60).Pastel(GetThemeColor("background")));
+        Console.WriteLine($"🌄 Wallpaper Changer v2.0 | Cache: {wallpaperCachePath}".Pastel(GetThemeColor("text")));
+        Console.WriteLine("=".Repeat(60).Pastel(GetThemeColor("background")));
+    }
+
+    private static void AutoDetectOS()
+    {
+        isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        Console.WriteLine($"\nDetected OS: {(isWindows ? "Windows" : "Linux")}".Pastel(GetThemeColor("success")));
+    }
+
+    private static async Task CheckForUpdates()
+    {
+        try
+        {
+            var response = await client.GetAsync("https://api.github.com/repos/yourusername/wallpaper-changer/releases/latest");
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                var release = JObject.Parse(json);
+                var latestVersion = release["tag_name"]?.ToString();
+                
+                if (!string.IsNullOrEmpty(latestVersion) && latestVersion != "v2.0")
+                {
+                    Console.WriteLine($"\n⚠️ Update available: v2.0 → {latestVersion}".Pastel("#f39c12"));
+                    Console.WriteLine("Download: https://github.com/yourusername/wallpaper-changer/releases".Pastel(GetThemeColor("primary")));
+                }
+            }
+        }
+        catch
+        {
+            // Ignore update check errors
+        }
+    }
+
+    private static void LoadHistory()
+    {
+        string historyFile = Path.Combine(wallpaperCachePath, "history.json");
+        if (File.Exists(historyFile))
+        {
+            try
+            {
+                var json = File.ReadAllText(historyFile);
+                var history = JsonConvert.DeserializeObject<List<WallpaperHistoryItem>>(json);
+                if (history != null)
+                {
+                    wallpaperHistory.AddRange(history);
+                    if (wallpaperHistory.Count > 0)
+                    {
+                        currentWallpaperPath = wallpaperHistory[^1].Path;
+                    }
+                    Console.WriteLine($"\nLoaded {wallpaperHistory.Count} items from history".Pastel(GetThemeColor("text")));
+                }
+            }
+            catch
+            {
+                Console.WriteLine("Could not load history".Pastel(GetThemeColor("error")));
+            }
+        }
+    }
+
+    private static void SaveHistory()
+    {
+        string historyFile = Path.Combine(wallpaperCachePath, "history.json");
+        try
+        {
+            File.WriteAllText(historyFile, JsonConvert.SerializeObject(wallpaperHistory));
+        }
+        catch
+        {
+            Console.WriteLine("Could not save history".Pastel(GetThemeColor("error")));
+        }
+    }
+
+    private static async Task ShowSettings()
+    {
+        while (true)
+        {
+            Console.WriteLine("\n" + "SETTINGS".Pastel(GetThemeColor("primary")).PastelBg(GetThemeColor("background")));
+            Console.WriteLine("1. 🔄 Change Cache Location".Pastel(GetThemeColor("menu1")));
+            Console.WriteLine("2. 🖼️ Clear Wallpaper Cache".Pastel(GetThemeColor("menu5")));
+            Console.WriteLine("3. 📜 Clear History".Pastel(GetThemeColor("menu3")));
+            Console.WriteLine("4. 🌈 Change UI Theme".Pastel(GetThemeColor("menu2")));
+            Console.WriteLine("5. ⬅️ Back to Main Menu".Pastel(GetThemeColor("menu4")));
+            Console.Write("\nChoose option: ".Pastel(GetThemeColor("text")));
+
+            string choice = Console.ReadLine()?.Trim() ?? "1";
+
+            switch (choice)
+            {
+                case "1":
+                    Console.Write("\nEnter new cache path: ");
+                    var newPath = Console.ReadLine()?.Trim();
+                    if (!string.IsNullOrEmpty(newPath))
+                    {
+                        if (!Directory.Exists(newPath))
+                        {
+                            try
+                            {
+                                Directory.CreateDirectory(newPath);
+                                wallpaperCachePath = newPath;
+                                Console.WriteLine($"Cache location updated to: {newPath}".Pastel(GetThemeColor("success")));
+                            }
+                            catch
+                            {
+                                Console.WriteLine("Invalid path or access denied".Pastel(GetThemeColor("error")));
+                            }
+                        }
+                        else
+                        {
+                            wallpaperCachePath = newPath;
+                            Console.WriteLine($"Cache location updated to: {newPath}".Pastel(GetThemeColor("success")));
+                        }
+                    }
+                    break;
+                case "2":
+                    Console.Write("\nAre you sure you want to clear the cache? (y/n): ");
+                    if (Console.ReadLine()?.ToLower() == "y")
+                    {
+                        try
+                        {
+                            Directory.Delete(wallpaperCachePath, true);
+                            Directory.CreateDirectory(wallpaperCachePath);
+                            Console.WriteLine("Cache cleared successfully".Pastel(GetThemeColor("success")));
+                        }
+                        catch
+                        {
+                            Console.WriteLine("Failed to clear cache".Pastel(GetThemeColor("error")));
+                        }
+                    }
+                    break;
+                case "3":
+                    Console.Write("\nAre you sure you want to clear history? (y/n): ");
+                    if (Console.ReadLine()?.ToLower() == "y")
+                    {
+                        wallpaperHistory.Clear();
+                        SaveHistory();
+                        Console.WriteLine("History cleared".Pastel(GetThemeColor("success")));
+                    }
+                    break;
+                case "4":
+                    Console.WriteLine("\nColor themes: ");
+                    Console.WriteLine("1. Ocean Blue (Default)");
+                    Console.WriteLine("2. Forest Green");
+                    Console.WriteLine("3. Sunset Orange");
+                    Console.Write("Choose theme: ");
+                    var themeChoice = Console.ReadLine()?.Trim();
+                    switch (themeChoice)
+                    {
+                        case "1":
+                            currentTheme = "ocean";
+                            Console.WriteLine("Theme changed to Ocean Blue!".Pastel("#3498db"));
+                            PrintBanner();
+                            break;
+                        case "2":
+                            currentTheme = "forest";
+                            Console.WriteLine("Theme changed to Forest Green!".Pastel("#2ecc71"));
+                            PrintBanner();
+                            break;
+                        case "3":
+                            currentTheme = "sunset";
+                            Console.WriteLine("Theme changed to Sunset Orange!".Pastel("#e67e22"));
+                            PrintBanner();
+                            break;
+                        default:
+                            Console.WriteLine("Invalid theme choice".Pastel(GetThemeColor("error")));
+                            break;
+                    }
+                    break;
+                case "5":
+                    return;
+                default:
+                    Console.WriteLine("Invalid choice".Pastel(GetThemeColor("error")));
+                    break;
+            }
+        }
     }
 
     private static async Task SearchWallpapers()
     {
-        Console.WriteLine("\nSearch Options:");
-        Console.WriteLine("1. By Category");
-        Console.WriteLine("2. By Tags");
-        Console.WriteLine("3. By Color");
-        Console.WriteLine("4. Random Wallpaper");
-        Console.WriteLine("5. Popular This Month");
-        Console.Write("Choose search method (1-5): ");
+        currentSearchParams = new SearchParameters();
+        
+        Console.WriteLine("\n" + "SEARCH OPTIONS".Pastel(GetThemeColor("primary")).PastelBg(GetThemeColor("background")));
+        Console.WriteLine("1. 🔖 By Category".Pastel(GetThemeColor("menu1")));
+        Console.WriteLine("2. 🏷️ By Tags".Pastel(GetThemeColor("menu2")));
+        Console.WriteLine("3. 🎨 By Color".Pastel(GetThemeColor("menu3")));
+        Console.WriteLine("4. 🎲 Random".Pastel(GetThemeColor("menu5")));
+        Console.WriteLine("5. 🔥 Popular".Pastel(GetThemeColor("menu7")));
+        Console.WriteLine("6. ⚙️ Advanced Search".Pastel(GetThemeColor("menu4")));
+        Console.WriteLine("7. ⬅️ Back".Pastel(GetThemeColor("menu6")));
+        Console.Write("\nChoose search method: ".Pastel(GetThemeColor("text")));
 
-        string choice = Console.ReadLine() ?? "1";
-
-        string query = "";
-        string categories = "111"; 
-        string purity = GetPurity();
-        string sorting = "date_added";
-        string order = "desc";
-        string topRange = "1M";
-        string colors = "";
-        string ratios = "16x9";
+        string choice = Console.ReadLine()?.Trim() ?? "1";
 
         switch (choice)
         {
             case "1":
-                categories = GetCategories();
-                sorting = "toplist";
+                currentSearchParams.Categories = GetCategories();
+                currentSearchParams.Sorting = "toplist";
                 break;
             case "2":
-                Console.Write("Enter tags (separate with spaces, max 6 tags): ");
-                query = Console.ReadLine() ?? "";
+                Console.Write("\nEnter tags (separate with commas): ");
+                currentSearchParams.Query = Console.ReadLine()?.Trim() ?? "";
                 break;
             case "3":
-                Console.Write("Enter color code (e.g., 660000, 0066cc, ffffff): ");
-                colors = Console.ReadLine() ?? "";
+                Console.Write("\nEnter color code (e.g., 660000, 0066cc, ffffff): ");
+                currentSearchParams.Colors = Console.ReadLine()?.Trim() ?? "";
                 break;
             case "4":
-                sorting = "random";
-                currentSeed = GenerateSeed();
+                currentSearchParams.Sorting = "random";
+                currentSearchParams.Seed = GenerateSeed();
                 break;
             case "5":
-                sorting = "toplist";
-                topRange = "1M";
+                currentSearchParams.Sorting = "toplist";
+                currentSearchParams.TopRange = "1M";
                 break;
+            case "6":
+                await ConfigureAdvancedSearch();
+                break;
+            case "7":
+                return;
+            default:
+                Console.WriteLine("Invalid choice".Pastel(GetThemeColor("error")));
+                return;
         }
 
-        await SearchAndSetWallpaper(query, categories, purity, sorting, order, topRange, colors, ratios);
+        currentSearchParams.Purity = GetPurity();
+        currentSearchParams.Ratios = GetRatios();
+        currentSearchParams.Resolutions = GetResolutions();
+
+        await SearchAndDisplayWallpapers();
+    }
+
+    private static async Task ConfigureAdvancedSearch()
+    {
+        Console.WriteLine("\n" + "ADVANCED SEARCH".Pastel(GetThemeColor("primary")).PastelBg(GetThemeColor("background")));
+        
+        currentSearchParams.Categories = GetCategories();
+        currentSearchParams.Purity = GetPurity();
+        
+        Console.Write("\nEnter tags (optional, separate with commas): ");
+        currentSearchParams.Query = Console.ReadLine()?.Trim() ?? "";
+        
+        Console.Write("Enter color code (optional, e.g., 660000): ");
+        currentSearchParams.Colors = Console.ReadLine()?.Trim() ?? "";
+        
+        currentSearchParams.Ratios = GetRatios();
+        currentSearchParams.Resolutions = GetResolutions();
+        
+        Console.WriteLine("\nSorting Options:");
+        Console.WriteLine("1. Date Added");
+        Console.WriteLine("2. Relevance");
+        Console.WriteLine("3. Random");
+        Console.WriteLine("4. Views");
+        Console.WriteLine("5. Favorites");
+        Console.WriteLine("6. Toplist");
+        Console.Write("Choose sorting: ");
+        
+        switch (Console.ReadLine()?.Trim() ?? "1")
+        {
+            case "1": currentSearchParams.Sorting = "date_added"; break;
+            case "2": currentSearchParams.Sorting = "relevance"; break;
+            case "3": currentSearchParams.Sorting = "random"; break;
+            case "4": currentSearchParams.Sorting = "views"; break;
+            case "5": currentSearchParams.Sorting = "favorites"; break;
+            case "6": currentSearchParams.Sorting = "toplist"; break;
+            default: currentSearchParams.Sorting = "date_added"; break;
+        }
+
+        if (currentSearchParams.Sorting == "toplist")
+        {
+            Console.WriteLine("\nTop Range:");
+            Console.WriteLine("1. Last Day");
+            Console.WriteLine("2. Last Week");
+            Console.WriteLine("3. Last Month");
+            Console.WriteLine("4. Last Year");
+            Console.WriteLine("5. All Time");
+            Console.Write("Choose range: ");
+            
+            switch (Console.ReadLine()?.Trim() ?? "3")
+            {
+                case "1": currentSearchParams.TopRange = "1d"; break;
+                case "2": currentSearchParams.TopRange = "1w"; break;
+                case "3": currentSearchParams.TopRange = "1M"; break;
+                case "4": currentSearchParams.TopRange = "1y"; break;
+                case "5": currentSearchParams.TopRange = "all"; break;
+                default: currentSearchParams.TopRange = "1M"; break;
+            }
+        }
     }
 
     private static string GetCategories()
@@ -141,9 +631,9 @@ class Program
         Console.WriteLine("2. Anime");
         Console.WriteLine("3. People");
         Console.WriteLine("4. All Categories");
-        Console.Write("Choose option (1-4): ");
+        Console.Write("Choose option: ");
 
-        string choice = Console.ReadLine() ?? "4";
+        string choice = Console.ReadLine()?.Trim() ?? "4";
 
         return choice switch
         {
@@ -157,136 +647,306 @@ class Program
     private static string GetPurity()
     {
         Console.WriteLine("\nSelect content purity:");
-        Console.WriteLine("1. SFW ");
+        Console.WriteLine("1. SFW (Safe)");
         Console.WriteLine("2. Sketchy");
-        Console.WriteLine("3. NSFW ");
-        Console.Write("Choose option (1-3): ");
+        Console.WriteLine("3. NSFW (Unsafe)");
+        Console.Write("Choose option: ");
 
-        string choice = Console.ReadLine() ?? "1";
+        string choice = Console.ReadLine()?.Trim() ?? "1";
 
         return choice switch
         {
             "1" => "100",
-            "2" => "010",
-            "3" => "001",
+            "2" => "110",
+            "3" => "111",
             _ => "100"
         };
     }
 
-    private static async Task SearchAndSetWallpaper(string query, string categories, string purity, 
-        string sorting, string order, string topRange, string colors, string ratios)
+    private static string GetRatios()
+    {
+        Console.WriteLine("\nSelect aspect ratios:");
+        Console.WriteLine("1. All Ratios");
+        Console.WriteLine("2. 16:9");
+        Console.WriteLine("3. 16:10");
+        Console.WriteLine("4. 21:9");
+        Console.WriteLine("5. 4:3");
+        Console.Write("Choose option: ");
+
+        string choice = Console.ReadLine()?.Trim() ?? "2";
+
+        return choice switch
+        {
+            "1" => "",
+            "2" => "16x9",
+            "3" => "16x10",
+            "4" => "21x9",
+            "5" => "4x3",
+            _ => "16x9"
+        };
+    }
+
+    private static string GetResolutions()
+    {
+        Console.WriteLine("\nSelect minimum resolution:");
+        Console.WriteLine("1. 1920x1080 (Full HD)");
+        Console.WriteLine("2. 2560x1440 (2K)");
+        Console.WriteLine("3. 3840x2160 (4K)");
+        Console.WriteLine("4. No minimum");
+        Console.Write("Choose option: ");
+
+        string choice = Console.ReadLine()?.Trim() ?? "1";
+
+        return choice switch
+        {
+            "1" => "1920x1080",
+            "2" => "2560x1440",
+            "3" => "3840x2160",
+            _ => ""
+        };
+    }
+
+    private static async Task SearchAndDisplayWallpapers()
     {
         try
         {
-            var apiUrl = new StringBuilder($"{BaseApiUrl}search?apikey={ApiKey}");
-            
-            apiUrl.Append($"&categories={categories}");
-            apiUrl.Append($"&purity={purity}");
-            apiUrl.Append($"&sorting={sorting}");
-            apiUrl.Append($"&order={order}");
-            
-            if (sorting == "toplist")
-                apiUrl.Append($"&topRange={topRange}");
-            
-            if (!string.IsNullOrEmpty(query))
-                apiUrl.Append($"&q={Uri.EscapeDataString(query)}");
-            
-            if (!string.IsNullOrEmpty(colors))
-                apiUrl.Append($"&colors={colors}");
-            
-            if (!string.IsNullOrEmpty(ratios))
-                apiUrl.Append($"&ratios={ratios}");
-            
-            if (!string.IsNullOrEmpty(currentSeed))
-                apiUrl.Append($"&seed={currentSeed}");
-            
-            apiUrl.Append($"&page={currentPage}");
-            apiUrl.Append("&atleast=1920x1080");
+            currentPage = 1;
+            await FetchWallpapers();
+            await WallpaperResultsMenu();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}".Pastel(GetThemeColor("error")));
+        }
+    }
 
-            Console.WriteLine($"\nFetching wallpapers from: {apiUrl.ToString().Replace(ApiKey, "***")}");
+    private static async Task FetchWallpapers()
+    {
+        var apiUrl = new StringBuilder($"{BaseApiUrl}search?apikey={ApiKey}");
+        
+        apiUrl.Append($"&categories={currentSearchParams.Categories}");
+        apiUrl.Append($"&purity={currentSearchParams.Purity}");
+        apiUrl.Append($"&sorting={currentSearchParams.Sorting}");
+        apiUrl.Append($"&order={currentSearchParams.Order}");
+        
+        if (!string.IsNullOrEmpty(currentSearchParams.Query))
+            apiUrl.Append($"&q={Uri.EscapeDataString(currentSearchParams.Query)}");
+        
+        if (!string.IsNullOrEmpty(currentSearchParams.Colors))
+            apiUrl.Append($"&colors={currentSearchParams.Colors}");
+        
+        if (!string.IsNullOrEmpty(currentSearchParams.Ratios))
+            apiUrl.Append($"&ratios={currentSearchParams.Ratios}");
+        
+        if (!string.IsNullOrEmpty(currentSearchParams.Resolutions))
+            apiUrl.Append($"&resolutions={currentSearchParams.Resolutions}");
+        
+        if (!string.IsNullOrEmpty(currentSearchParams.Seed))
+            apiUrl.Append($"&seed={currentSearchParams.Seed}");
+        
+        if (currentSearchParams.Sorting == "toplist")
+            apiUrl.Append($"&topRange={currentSearchParams.TopRange}");
+        
+        apiUrl.Append($"&page={currentPage}");
 
-            var response = await client.GetAsync(apiUrl.ToString());
+        Console.WriteLine($"\nFetching wallpapers...".Pastel(GetThemeColor("primary")));
+        
+        var response = await client.GetAsync(apiUrl.ToString());
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadAsStringAsync();
+        var data = JObject.Parse(json);
+
+        if (data["data"] == null || !data["data"].Any())
+        {
+            Console.WriteLine("No wallpapers found. Try different search parameters.".Pastel(GetThemeColor("error")));
+            return;
+        }
+
+        totalPages = data["meta"]?["last_page"]?.ToObject<int>() ?? 1;
+        currentWallpapers = data["data"]?.ToObject<List<Wallpaper>>() ?? new List<Wallpaper>();
+        DisplayWallpaperGrid(currentWallpapers);
+    }
+
+    private static void DisplayWallpaperGrid(List<Wallpaper> wallpapers)
+    {
+        Console.WriteLine($"\nPage {currentPage}/{totalPages} | Found {wallpapers.Count} wallpapers".Pastel(GetThemeColor("primary")));
+        Console.WriteLine("=".Repeat(80).Pastel(GetThemeColor("background")));
+        
+        for (int i = 0; i < wallpapers.Count; i++)
+        {
+            var wp = wallpapers[i];
+            string purityBadge = wp.Purity == "sfw" ? "🟢" : 
+                               wp.Purity == "sketchy" ? "🟠" : "🔴";
+            
+            string ratioIcon = "🖼️";
+            if (wp.Resolution.Contains("1920x1080") || wp.Resolution.Contains("2560x1440") || 
+                wp.Resolution.Contains("3840x2160"))
+            {
+                ratioIcon = "📺"; // 16:9
+            }
+            else if (wp.Resolution.Contains("1920x1200") || wp.Resolution.Contains("2560x1600"))
+            {
+                ratioIcon = "💻"; // 16:10
+            }
+            else if (wp.Resolution.Contains("2560x1080") || wp.Resolution.Contains("3440x1440"))
+            {
+                ratioIcon = "🎬"; // 21:9
+            }
+            else if (wp.Resolution.Contains("1600x1200") || wp.Resolution.Contains("2048x1536"))
+            {
+                ratioIcon = "📱"; // 4:3
+            }
+            
+            Console.WriteLine($"{i + 1}. {wp.Id} {purityBadge} {ratioIcon} | {wp.Resolution} | 🌟 {wp.Favorites} | 👁️ {wp.Views}");
+            Console.WriteLine($"   🏷️ {string.Join(", ", wp.Tags?.Select(t => t.Name)?.Take(5) ?? new List<string>())}");
+            
+            if (!string.IsNullOrEmpty(wp.Path))
+            {
+                string domain = new Uri(wp.Path).Host;
+                string path = new Uri(wp.Path).AbsolutePath;
+                Console.WriteLine($"   🔗 {domain}{path.Substring(0, Math.Min(40, path.Length))}...");
+            }
+            
+            if (i < wallpapers.Count - 1)
+                Console.WriteLine("-".Repeat(80).Pastel(GetThemeColor("background")));
+        }
+        
+        Console.WriteLine("=".Repeat(80).Pastel(GetThemeColor("background")));
+    }
+
+    private static async Task WallpaperResultsMenu()
+    {
+        while (true)
+        {
+            Console.WriteLine("\n" + "WALLPAPER OPTIONS".Pastel(GetThemeColor("primary")).PastelBg(GetThemeColor("background")));
+            Console.WriteLine("1-9: Set wallpaper".Pastel(GetThemeColor("menu1")));
+            Console.WriteLine("P: Preview wallpaper".Pastel(GetThemeColor("menu2")));
+            Console.WriteLine("D: Download without setting".Pastel(GetThemeColor("menu3")));
+            Console.WriteLine("N: Next page".Pastel(GetThemeColor("menu6")));
+            Console.WriteLine("B: Previous page".Pastel(GetThemeColor("menu6")));
+            Console.WriteLine("S: Back to search".Pastel(GetThemeColor("menu4")));
+            Console.WriteLine("M: Main menu".Pastel(GetThemeColor("menu7")));
+            Console.Write("\nChoose option: ".Pastel(GetThemeColor("text")));
+
+            var selection = Console.ReadLine()?.Trim().ToLower();
+
+            if (int.TryParse(selection, out int index) && index > 0 && index <= currentWallpapers.Count)
+            {
+                var selectedWallpaper = currentWallpapers[index - 1];
+                await DownloadAndSetWallpaper(selectedWallpaper);
+                return;
+            }
+
+            switch (selection)
+            {
+                case "p":
+                    Console.Write("Enter wallpaper number to preview: ");
+                    if (int.TryParse(Console.ReadLine(), out int previewIndex) && 
+                        previewIndex > 0 && previewIndex <= currentWallpapers.Count)
+                    {
+                        ShowWallpaperPreview(currentWallpapers[previewIndex - 1].Path);
+                    }
+                    break;
+                case "d":
+                    Console.Write("Enter wallpaper number to download: ");
+                    if (int.TryParse(Console.ReadLine(), out int dlIndex) && 
+                        dlIndex > 0 && dlIndex <= currentWallpapers.Count)
+                    {
+                        await DownloadWallpaper(currentWallpapers[dlIndex - 1], false);
+                    }
+                    break;
+                case "n":
+                    if (currentPage < totalPages)
+                    {
+                        currentPage++;
+                        await FetchWallpapers();
+                    }
+                    else
+                    {
+                        Console.WriteLine("Already on last page".Pastel(GetThemeColor("error")));
+                    }
+                    break;
+                case "b":
+                    if (currentPage > 1)
+                    {
+                        currentPage--;
+                        await FetchWallpapers();
+                    }
+                    else
+                    {
+                        Console.WriteLine("Already on first page".Pastel(GetThemeColor("error")));
+                    }
+                    break;
+                case "s":
+                    await SearchWallpapers();
+                    return;
+                case "m":
+                    return;
+                default:
+                    Console.WriteLine("Invalid selection".Pastel(GetThemeColor("error")));
+                    break;
+            }
+        }
+    }
+
+    private static async Task SetRandomWallpaper()
+    {
+        try
+        {
+            Console.WriteLine("\nFetching random wallpaper...".Pastel(GetThemeColor("primary")));
+            
+            var apiUrl = $"{BaseApiUrl}search?apikey={ApiKey}&sorting=random&categories=111&purity=100";
+            var response = await client.GetAsync(apiUrl);
             response.EnsureSuccessStatusCode();
 
             var json = await response.Content.ReadAsStringAsync();
             var data = JObject.Parse(json);
+            var wallpapers = data["data"]?.ToObject<List<Wallpaper>>() ?? new List<Wallpaper>();
 
-            if (data["data"] == null || !data["data"].Any())
+            if (wallpapers.Count > 0)
             {
-                Console.WriteLine("No wallpapers found. Try different search parameters.");
-                return;
-            }
-
-            var wallpapers = data["data"].ToObject<List<Wallpaper>>();
-            DisplayWallpaperList(wallpapers);
-
-            Console.Write("\nEnter wallpaper number to set (or 'n' for next page, 'p' for previous page): ");
-            var selection = Console.ReadLine();
-
-            if (selection?.ToLower() == "n")
-            {
-                currentPage++;
-                await SearchAndSetWallpaper(query, categories, purity, sorting, order, topRange, colors, ratios);
-                return;
-            }
-            else if (selection?.ToLower() == "p" && currentPage > 1)
-            {
-                currentPage--;
-                await SearchAndSetWallpaper(query, categories, purity, sorting, order, topRange, colors, ratios);
-                return;
-            }
-
-            if (int.TryParse(selection, out int index) && index > 0 && index <= wallpapers.Count)
-            {
-                var selectedWallpaper = wallpapers[index - 1];
-                await DownloadAndSetWallpaper(selectedWallpaper);
-            }
-            else
-            {
-                Console.WriteLine("Invalid selection.");
+                var randomWallpaper = wallpapers[random.Next(wallpapers.Count)];
+                await DownloadAndSetWallpaper(randomWallpaper);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error: {ex.Message}");
-        }
-    }
-
-    private static void DisplayWallpaperList(List<Wallpaper> wallpapers)
-    {
-        Console.WriteLine("\nSearch Results:");
-        for (int i = 0; i < wallpapers.Count; i++)
-        {
-            var wp = wallpapers[i];
-            Console.WriteLine($"{i + 1}. {wp.Id} - {wp.Resolution} - {wp.Category}/{wp.Purity}");
-            Console.WriteLine($"   Tags: {string.Join(", ", wp.Tags?.Select(t => t.Name) ?? new List<string>())}");
-            Console.WriteLine($"   Colors: {string.Join(", ", wp.Colors ?? new List<string>())}");
+            Console.WriteLine($"Error: {ex.Message}".Pastel(GetThemeColor("error")));
         }
     }
 
     private static async Task DownloadAndSetWallpaper(Wallpaper wallpaper)
+    {
+        if (await DownloadWallpaper(wallpaper, true))
+        {
+            SetWallpaper(wallpaper);
+        }
+    }
+
+    private static async Task<bool> DownloadWallpaper(Wallpaper wallpaper, bool setAsWallpaper)
     {
         try
         {
             string imageUrl = wallpaper.Path;
             if (string.IsNullOrEmpty(imageUrl))
             {
-                Console.WriteLine("No valid image URL found.");
-                return;
+                Console.WriteLine("No valid image URL found".Pastel(GetThemeColor("error")));
+                return false;
             }
 
-            if (downloadedWallpapers.Contains(imageUrl))
-            {
-                Console.WriteLine("This wallpaper has already been used.");
-                return;
-            }
-
-            Console.WriteLine($"\nDownloading wallpaper: {wallpaper.Id}");
-            Console.WriteLine($"Resolution: {wallpaper.Resolution}");
-            Console.WriteLine($"URL: {imageUrl}");
-
-            // Save to cache directory instead of temp
             string wallpaperPath = Path.Combine(wallpaperCachePath, $"wallhaven-{wallpaper.Id}.jpg");
+            if (File.Exists(wallpaperPath))
+            {
+                Console.WriteLine("Using cached wallpaper".Pastel(GetThemeColor("text")));
+                if (setAsWallpaper)
+                {
+                    SetWallpaper(wallpaper);
+                }
+                return true;
+            }
+
+            Console.WriteLine($"\nDownloading: {wallpaper.Id} ({wallpaper.Resolution})".Pastel(GetThemeColor("primary")));
             
             using (var response = await client.GetAsync(imageUrl))
             {
@@ -297,96 +957,59 @@ class Program
                 {
                     await stream.CopyToAsync(fileStream);
                 }
-            }
+            } 
             
-            SetWallpaper(wallpaperPath);
-            downloadedWallpapers.Add(imageUrl);
+            wallpaperHistory.Add(new WallpaperHistoryItem {
+                Id = wallpaper.Id,
+                Path = wallpaperPath,
+                Url = imageUrl,
+                Resolution = wallpaper.Resolution,
+                SetDate = DateTime.Now,
+                Tags = wallpaper.Tags?.Select(t => t.Name).ToList() ?? new List<string>()
+            });
             
-            // For Linux: Create a symlink to the current wallpaper for persistence
-            if (!isWindows)
+            SaveHistory();
+            currentWallpaperPath = wallpaperPath;
+
+            if (setAsWallpaper)
             {
-                string currentWallpaperLink = Path.Combine(wallpaperCachePath, "current_wallpaper.jpg");
-                if (File.Exists(currentWallpaperLink))
-                {
-                    File.Delete(currentWallpaperLink);
-                }
-                File.CreateSymbolicLink(currentWallpaperLink, wallpaperPath);
+                SetWallpaper(wallpaper);
             }
             
-            Console.WriteLine("Wallpaper set successfully!");
+            Console.WriteLine("Download complete!".Pastel(GetThemeColor("success")));
+            return true;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error downloading wallpaper: {ex.Message}");
+            Console.WriteLine($"Download error: {ex.Message}".Pastel(GetThemeColor("error")));
+            return false;
         }
     }
 
-    private static async Task SetDefaultWallpaper()
+    private static void SetWallpaper(Wallpaper wallpaper)
     {
-        try
+        string wallpaperPath = Path.Combine(wallpaperCachePath, $"wallhaven-{wallpaper.Id}.jpg");
+        
+        if (!File.Exists(wallpaperPath))
         {
-            string defaultUrl = isWindows ? DefaultWindowsWallpaperUrl : DefaultLinuxWallpaperUrl;
-            Console.WriteLine($"\nDownloading default wallpaper from: {defaultUrl}");
-
-            string wallpaperPath = Path.Combine(wallpaperCachePath, isWindows ? "windows_default.jpg" : "linux_default.jpg");
-            
-            using (var response = await client.GetAsync(defaultUrl))
-            {
-                if (response.IsSuccessStatusCode)
-                {
-                    using (var stream = await response.Content.ReadAsStreamAsync())
-                    using (var fileStream = new FileStream(wallpaperPath, FileMode.Create))
-                    {
-                        await stream.CopyToAsync(fileStream);
-                    }
-                    
-                    SetWallpaper(wallpaperPath);
-                    
-                    // For Linux: Update the symlink
-                    if (!isWindows)
-                    {
-                        string currentWallpaperLink = Path.Combine(wallpaperCachePath, "current_wallpaper.jpg");
-                        if (File.Exists(currentWallpaperLink))
-                        {
-                            File.Delete(currentWallpaperLink);
-                        }
-                        File.CreateSymbolicLink(currentWallpaperLink, wallpaperPath);
-                    }
-                    
-                    Console.WriteLine("Default wallpaper set successfully.");
-                }
-                else
-                {
-                    Console.WriteLine("Failed to download default wallpaper.");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error: {ex.Message}");
-        }
-    }
-
-    private static void ShowDownloadHistory()
-    {
-        Console.WriteLine("\nDownload History:");
-        if (downloadedWallpapers.Count == 0)
-        {
-            Console.WriteLine("No wallpapers downloaded yet.");
+            Console.WriteLine("Wallpaper file not found".Pastel(GetThemeColor("error")));
             return;
         }
 
-        for (int i = 0; i < downloadedWallpapers.Count; i++)
-        {
-            Console.WriteLine($"{i + 1}. {downloadedWallpapers[i]}");
-        }
+        SetWallpaperFile(wallpaperPath);
+        
+        Console.WriteLine("\n🎉 Wallpaper set successfully!".Pastel(GetThemeColor("success")));
+        Console.WriteLine($"🆔 ID: {wallpaper.Id}".Pastel(GetThemeColor("primary")));
+        Console.WriteLine($"📏 Resolution: {wallpaper.Resolution}".Pastel(GetThemeColor("menu2")));
+        Console.WriteLine($"⭐ Favorites: {wallpaper.Favorites}".Pastel(GetThemeColor("menu3")));
+        Console.WriteLine($"👀 Views: {wallpaper.Views}\n".Pastel(GetThemeColor("menu1")));
     }
 
-    private static void SetWallpaper(string path)
+    private static void SetWallpaperFile(string wallpaperPath)
     {
         if (isWindows)
         {
-            SystemParametersInfo(SPI_SETDESKWALLPAPER, 0, path, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE);
+            SystemParametersInfo(SPI_SETDESKWALLPAPER, 0, wallpaperPath, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE);
         }
         else
         {
@@ -396,47 +1019,89 @@ class Program
 
                 if (desktopSession.Contains("gnome") || desktopSession.Contains("ubuntu") || desktopSession.Contains("unity"))
                 {
-                    ExecuteCommand($"gsettings set org.gnome.desktop.background picture-uri \"file://{path}\"");
-                    ExecuteCommand($"gsettings set org.gnome.desktop.background picture-uri-dark \"file://{path}\"");
-                    
-                    // Also save to a file that can be loaded at startup
-                    File.WriteAllText(Path.Combine(wallpaperCachePath, "last_wallpaper.txt"), path);
+                    ExecuteCommand($"gsettings set org.gnome.desktop.background picture-uri \"file://{wallpaperPath}\"");
+                    ExecuteCommand($"gsettings set org.gnome.desktop.background picture-uri-dark \"file://{wallpaperPath}\"");
                 }
                 else if (desktopSession.Contains("xfce"))
                 {
-                    ExecuteCommand($"xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -s \"{path}\"");
-                    
-                    // Create a script to restore the wallpaper
-                    string restoreScript = Path.Combine(wallpaperCachePath, "restore_wallpaper.sh");
-                    File.WriteAllText(restoreScript, 
-                        $"#!/bin/bash\nxfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -s \"{path}\"");
-                    ExecuteCommand($"chmod +x {restoreScript}");
+                    ExecuteCommand($"xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -s \"{wallpaperPath}\"");
                 }
                 else if (desktopSession.Contains("kde"))
                 {
-                    ExecuteCommand($"dbus-send --session --dest=org.kde.plasmashell --type=method_call /PlasmaShell org.kde.PlasmaShell.evaluateScript " +
-                                  $"\"string:var Desktops = desktops();" +
-                                  $"for (i=0;i<Desktops.length;i++) {{" +
-                                  $"d = Desktops[i];" +
-                                  $"d.wallpaperPlugin = \\\"org.kde.image\\\";" +
-                                  $"d.currentConfigGroup = Array(\\\"Wallpaper\\\", \\\"org.kde.image\\\", \\\"General\\\");" +
-                                  $"d.writeConfig(\\\"Image\\\", \\\"file:{path}\\\")}}\"");
-                    
-                    // Save the command to restore the wallpaper
-                    File.WriteAllText(Path.Combine(wallpaperCachePath, "last_kde_wallpaper.txt"), path);
+                    ExecuteCommand(
+                        "dbus-send --session --dest=org.kde.plasmashell --type=method_call /PlasmaShell " +
+                        "org.kde.PlasmaShell.evaluateScript 'string:var Desktops = desktops();" +
+                        "for (i=0;i<Desktops.length;i++) {" +
+                        "d = Desktops[i];" +
+                        "d.wallpaperPlugin = \"org.kde.image\";" +
+                        "d.currentConfigGroup = Array(\"Wallpaper\", \"org.kde.image\", \"General\");" +
+                        $"d.writeConfig(\"Image\", \"file:{wallpaperPath}\");}}'");
                 }
                 else
                 {
-                    // For other DEs or window managers, use feh and create a .fehbg file for persistence
-                    ExecuteCommand($"feh --bg-fill \"{path}\"");
-                    File.WriteAllText(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".fehbg"), 
-                        $"#!/bin/sh\nfeh --no-fehbg --bg-fill '{path}'");
-                    ExecuteCommand($"chmod +x {Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".fehbg")}");
+                    ExecuteCommand($"feh --bg-fill \"{wallpaperPath}\"");
                 }
+                
+                string currentLink = Path.Combine(wallpaperCachePath, "current_wallpaper");
+                if (File.Exists(currentLink)) File.Delete(currentLink);
+                File.CreateSymbolicLink(currentLink, wallpaperPath);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error setting wallpaper: {ex.Message}");
+                Console.WriteLine($"Error setting wallpaper: {ex.Message}".Pastel(GetThemeColor("error")));
+            }
+        }
+    }
+
+    private static void ShowWallpaperHistory()
+    {
+        if (wallpaperHistory.Count == 0)
+        {
+            Console.WriteLine("\nNo wallpaper history found".Pastel(GetThemeColor("text")));
+            return;
+        }
+
+        Console.WriteLine("\n" + $"WALLPAPER HISTORY ({wallpaperHistory.Count})".Pastel(GetThemeColor("primary")).PastelBg(GetThemeColor("background")));
+        int displayCount = Math.Min(10, wallpaperHistory.Count);
+        
+        for (int i = 0; i < displayCount; i++)
+        {
+            var item = wallpaperHistory[wallpaperHistory.Count - 1 - i];
+            Console.WriteLine($"{i + 1}. 🆔 {item.Id} | 📅 {item.SetDate:g} | 📏 {item.Resolution}");
+            Console.WriteLine($"   {string.Join(", ", item.Tags.Take(5))}");
+            Console.WriteLine($"   {item.Path}");
+            if (i < displayCount - 1)
+                Console.WriteLine("-".Repeat(80).Pastel(GetThemeColor("background")));
+        }
+
+        Console.WriteLine("\n1-10: Set wallpaper from history".Pastel(GetThemeColor("menu1")));
+        Console.WriteLine("C: Clear history".Pastel(GetThemeColor("menu5")));
+        Console.WriteLine("B: Back".Pastel(GetThemeColor("menu4")));
+        Console.Write("Choose option: ".Pastel(GetThemeColor("text")));
+
+        var choice = Console.ReadLine()?.Trim().ToLower();
+        if (int.TryParse(choice, out int index) && index > 0 && index <= displayCount)
+        {
+            var wallpaper = wallpaperHistory[wallpaperHistory.Count - index];
+            if (File.Exists(wallpaper.Path))
+            {
+                SetWallpaperFile(wallpaper.Path);
+                currentWallpaperPath = wallpaper.Path;
+                Console.WriteLine("Wallpaper set from history".Pastel(GetThemeColor("success")));
+            }
+            else
+            {
+                Console.WriteLine("Wallpaper file not found".Pastel(GetThemeColor("error")));
+            }
+        }
+        else if (choice == "c")
+        {
+            Console.Write("Are you sure? (y/n): ");
+            if (Console.ReadLine()?.ToLower() == "y")
+            {
+                wallpaperHistory.Clear();
+                SaveHistory();
+                Console.WriteLine("History cleared".Pastel(GetThemeColor("success")));
             }
         }
     }
@@ -445,13 +1110,13 @@ class Program
     {
         try
         {
-            var parts = command.Split(new[] { ' ' }, 2);
+            var escapedArgs = command.Replace("\"", "\\\"");
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = parts[0],
-                    Arguments = parts.Length > 1 ? parts[1] : "",
+                    FileName = "/bin/bash",
+                    Arguments = $"-c \"{escapedArgs}\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -461,40 +1126,93 @@ class Program
 
             process.Start();
             process.WaitForExit();
-
-            if (process.ExitCode != 0)
-            {
-                Console.WriteLine($"Command failed: {process.StandardError.ReadToEnd()}");
-            }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error executing command: {ex.Message}");
+            Console.WriteLine($"Command error: {ex.Message}".Pastel(GetThemeColor("error")));
         }
     }
 
     private static string GenerateSeed()
     {
         const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        var random = new Random();
-        return new string(Enumerable.Repeat(chars, 6).Select(s => s[random.Next(s.Length)]).ToArray());
+        return new string(Enumerable.Repeat(chars, 8).Select(s => s[random.Next(s.Length)]).ToArray());
     }
+}
+
+class SearchParameters
+{
+    public string Query { get; set; } = "";
+    public string Categories { get; set; } = "111";
+    public string Purity { get; set; } = "100";
+    public string Sorting { get; set; } = "date_added";
+    public string Order { get; set; } = "desc";
+    public string TopRange { get; set; } = "1M";
+    public string Colors { get; set; } = "";
+    public string Ratios { get; set; } = "16x9";
+    public string Resolutions { get; set; } = "1920x1080";
+    public string Seed { get; set; } = "";
 }
 
 class Wallpaper
 {
-    public string Id { get; set; }
-    public string Url { get; set; }
-    public string ShortUrl { get; set; }
-    public string Purity { get; set; }
-    public string Category { get; set; }
-    public string Resolution { get; set; }
-    public List<string> Colors { get; set; }
-    public string Path { get; set; }
-    public List<Tag> Tags { get; set; }
+    [JsonProperty("id")]
+    public string Id { get; set; } = "";
+    
+    [JsonProperty("url")]
+    public string Url { get; set; } = "";
+    
+    [JsonProperty("short_url")]
+    public string ShortUrl { get; set; } = "";
+    
+    [JsonProperty("purity")]
+    public string Purity { get; set; } = "";
+    
+    [JsonProperty("category")]
+    public string Category { get; set; } = "";
+    
+    [JsonProperty("resolution")]
+    public string Resolution { get; set; } = "";
+    
+    [JsonProperty("colors")]
+    public List<string> Colors { get; set; } = new List<string>();
+    
+    [JsonProperty("path")]
+    public string Path { get; set; } = "";
+    
+    [JsonProperty("tags")]
+    public List<Tag> Tags { get; set; } = new List<Tag>();
+    
+    [JsonProperty("favorites")]
+    public int Favorites { get; set; }
+    
+    [JsonProperty("views")]
+    public int Views { get; set; }
 }
 
 class Tag
 {
-    public string Name { get; set; }
+    [JsonProperty("id")]
+    public int Id { get; set; }
+    
+    [JsonProperty("name")]
+    public string Name { get; set; } = "";
+}
+
+class WallpaperHistoryItem
+{
+    public string Id { get; set; } = "";
+    public string Path { get; set; } = "";
+    public string Url { get; set; } = "";
+    public string Resolution { get; set; } = "";
+    public DateTime SetDate { get; set; }
+    public List<string> Tags { get; set; } = new List<string>();
+}
+
+public static class StringExtensions
+{
+    public static string Repeat(this string s, int count)
+    {
+        return new StringBuilder(s.Length * count).Insert(0, s, count).ToString();
+    }
 }
