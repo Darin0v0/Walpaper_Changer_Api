@@ -21,7 +21,7 @@ class Program
     private const int SPIF_SENDCHANGE = 0x02;
 
     private const string ApiKey = "aOAqwTWJ3bqA6D7JEqPTrgaSiwB97J9g";
-    private const string BaseApiUrl = "https://wallhaven.cc/api/v1/";
+    private const string BaseApiUrl = "https://wallhaven.cc/api/v1/w/";
     private static readonly HttpClient client = new HttpClient();
     private static readonly List<WallpaperHistoryItem> wallpaperHistory = new List<WallpaperHistoryItem>();
     private static bool isWindows = true;
