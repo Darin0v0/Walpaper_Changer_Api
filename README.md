@@ -1,8 +1,14 @@
-# WalpaperChangerApi
+# Wallpaper Changer C# (v1.2)
 
-Wallpaper Changer C#  and API for windows and linux (gnome/kde/xfce/i3/sway)
+Cross-platform wallpaper manager for Windows and Linux
 
-Features
+This project is a C# wallpaper changer with full API support, designed to work on:
+
+Windows (all modern versions)
+
+Linux (GNOME, KDE, XFCE, i3, Sway)
+
+It supports both static and animated wallpapers, including video wallpapers on Linux using Hidamari.
 
 🌄 Cross-platform: Windows and Linux support
 
