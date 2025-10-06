@@ -108,7 +108,7 @@ class Program
                     }
                     else
                     {
-                        await SetHidamariVideoWallpaper();
+                        await SetHanabiVideoWallpaper();
                     }
                     break;
                 case "8":
@@ -182,21 +182,12 @@ class Program
         };
     }
 
-
-private static async Task SetHidamariVideoWallpaper()
+private static async Task SetHanabiVideoWallpaper()
 {
     Console.WriteLine("\n🎥 Video Wallpaper (Linux)".Pastel(GetThemeColor("primary")));
     
     try
     {
-        if (!IsHidamariInstalled())
-        {
-            Console.WriteLine("Hidamari not found.".Pastel(GetThemeColor("error")));
-            Console.WriteLine("Please install Hidamari via Flatpak:".Pastel(GetThemeColor("text")));
-            Console.WriteLine("flatpak install flathub io.github.jeffshee.Hidamari".Pastel(GetThemeColor("text")));
-            return;
-        }
-
         // Sprawdź czy folder animee istnieje
         string animePath = "/home/dawid/Obrazy/animee";
         if (!Directory.Exists(animePath))
@@ -230,115 +221,58 @@ private static async Task SetHidamariVideoWallpaper()
         }
 
         string selectedVideo = mp4Files[selectedIndex - 1];
-        string hidamariFolder = "/home/dawid/Wideo/Hidamari";
 
-        // Utwórz folder Hidamari jeśli nie istnieje
-        if (!Directory.Exists(hidamariFolder))
-        {
-            Directory.CreateDirectory(hidamariFolder);
-        }
-
-        // Usuń poprzednie pliki z folderu Hidamari
-        var existingFiles = Directory.GetFiles(hidamariFolder, "*.mp4");
-        foreach (var file in existingFiles)
-        {
-            try
-            {
-                File.Delete(file);
-                Console.WriteLine($"Removed previous video: {Path.GetFileName(file)}".Pastel(GetThemeColor("text")));
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error removing {Path.GetFileName(file)}: {ex.Message}".Pastel(GetThemeColor("error")));
-            }
-        }
-
-        // Skopiuj wybrany plik do folderu Hidamari jako video.mp4
-        string destinationPath = Path.Combine(hidamariFolder, "video.mp4");
+        // Ustaw ścieżkę wideo w Hanabi przez gsettings
         try
         {
-            File.Copy(selectedVideo, destinationPath, true);
-            Console.WriteLine($"Copied video folder as: video.mp4".Pastel(GetThemeColor("success")));
+            Process.Start("/bin/bash", $"-c \"gsettings set io.github.jeffshee.hanabi-extension video-path '{selectedVideo}'\"");
+            Console.WriteLine($"Video path set to: {selectedVideo}".Pastel(GetThemeColor("success")));
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error copying video: {ex.Message}".Pastel(GetThemeColor("error")));
-            return;
+            Console.WriteLine($"Error setting Hanabi video: {ex.Message}".Pastel(GetThemeColor("error")));
         }
 
-        // Uruchom Hidamari z zapętlaniem - z nohup
-
-string fullCommand = "setsid flatpak run io.github.jeffshee.Hidamari -b >/dev/null 2>&1 &";
-
-var process = new Process
-{
-    StartInfo = new ProcessStartInfo
-    {
-        FileName = "/bin/bash",
-        Arguments = $"-c \"{fullCommand}\"",
-        UseShellExecute = false,
-        CreateNoWindow = true
-    }
-};
-process.Start();
-
-
-
-
-        process.Start();
-        
-        // Zapisz informację o video wallpaper w historii
-        wallpaperHistory.Add(new WallpaperHistoryItem {
-            Id = "hidamari_video_" + DateTime.Now.ToString("yyyyMMddHHmmss"),
-            Path = destinationPath,
-            Url = "",
-            Resolution = "Video Wallpaper",
-            SetDate = DateTime.Now,
-            Tags = new List<string> { "video", "mp4", "animated", "hidamari" }
-        });
-        
-        SaveHistory();
-        
-        Console.WriteLine("\n🎥  video wallpaper started!".Pastel(GetThemeColor("success")));
-        Console.WriteLine("💡 Tips:".Pastel(GetThemeColor("text")));
-        Console.WriteLine($"• Playing: {Path.GetFileName(selectedVideo)} (as video.mp4)".Pastel(GetThemeColor("text")));
-        Console.WriteLine("• Video is looping automatically".Pastel(GetThemeColor("text")));
-        Console.WriteLine("• Running in background with nohup".Pastel(GetThemeColor("text")));
-        Console.WriteLine("• Close  from system tray to stop".Pastel(GetThemeColor("text")));
-        Console.WriteLine("\nPress any key to return to menu...".Pastel(GetThemeColor("text")));
-        Console.ReadKey();
-
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Error starting : {ex.Message}".Pastel(GetThemeColor("error")));
-    }
-}
-private static bool IsHidamariInstalled()
-{
-    try
-    {
+        // Uruchom Hanabi w tle
+        string fullCommand = "flatpak run --socket=wayland io.github.jeffshee.Hanabi >/dev/null 2>&1 &";
         var process = new Process
         {
             StartInfo = new ProcessStartInfo
             {
-                FileName = "flatpak",
-                Arguments = "info io.github.jeffshee.Hidamari",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
+                FileName = "/bin/bash",
+                Arguments = $"-c \"{fullCommand}\"",
                 UseShellExecute = false,
                 CreateNoWindow = true
             }
         };
         process.Start();
-        process.WaitForExit(2000);
-        return process.ExitCode == 0;
+
+        // Zapisz informację o video wallpaper w historii
+        wallpaperHistory.Add(new WallpaperHistoryItem {
+            Id = "hanabi_video_" + DateTime.Now.ToString("yyyyMMddHHmmss"),
+            Path = selectedVideo,
+            Url = "",
+            Resolution = "Video Wallpaper",
+            SetDate = DateTime.Now,
+            Tags = new List<string> { "video", "mp4", "animated", "hanabi" }
+        });
+        
+        SaveHistory();
+        
+        Console.WriteLine("\n🎥 Video wallpaper started!".Pastel(GetThemeColor("success")));
+        Console.WriteLine($"• Playing: {Path.GetFileName(selectedVideo)}".Pastel(GetThemeColor("text")));
+        Console.WriteLine("• Video is looping automatically".Pastel(GetThemeColor("text")));
+        Console.WriteLine("• Running in background".Pastel(GetThemeColor("text")));
+        Console.WriteLine("• Close from system tray to stop".Pastel(GetThemeColor("text")));
+        Console.WriteLine("\nPress any key to return to menu...".Pastel(GetThemeColor("text")));
+        Console.ReadKey();
     }
-    catch 
-    { 
-        return false; 
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error starting Hanabi: {ex.Message}".Pastel(GetThemeColor("error")));
     }
 }
+
 
     private static async Task SetVLCVideoWallpaper()
     {
@@ -401,16 +335,16 @@ private static bool IsHidamariInstalled()
             switch (vlcChoice)
             {
                 case "1":
-                    vlcArgs = $"\"{videoPath}\" --video-wallpaper --no-audio --no-loop";
+                    vlcArgs = $"\"{videoPath}\" --video-wallpape --no-video-title-show --no-audio --no-loop";
                     break;
                 case "2":
-                    vlcArgs = $"\"{videoPath}\" --video-wallpaper --no-audio --loop";
+                    vlcArgs = $"\"{videoPath}\" --video-wallpaper ---no-video-title-show --no-audio --loop";
                     break;
                 case "3":
-                    vlcArgs = $"\"{videoPath}\" --video-wallpaper --loop";
+                    vlcArgs = $"\"{videoPath}\" --video-wallpaper--no-video-title-show --loop";
                     break;
                 default:
-                    vlcArgs = $"\"{videoPath}\" --video-wallpaper --no-audio --loop";
+                    vlcArgs = $"\"{videoPath}\" --video-wallpaper --no-video-title-show --no-audio --loop";
                     break;
             }
 
