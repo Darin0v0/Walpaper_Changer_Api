@@ -55,9 +55,9 @@ Animated wallpapers run seamlessly in the background
 
 Notes
 
-Linux video wallpaper requires Hidamari installed via Flatpak
+Linux video wallpaper requires Hanabi installed 
 
-Works on Wayland and X11 sessions
+Works on Wayland 
 
 
 https://youtu.be/kY4GelCmky4  1.2 Animated Walpaper
