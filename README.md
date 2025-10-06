@@ -30,31 +30,16 @@ Windows: Instal vlc
 Linux: 
 
 Installation
-
     Clone the repo
-
-    For GNOME 48 (experimental)
-
     git clone https://github.com/jeffshee/gnome-ext-hanabi.git -b gnome-48
-
-For GNOME 45 and later
-
-git clone https://github.com/jeffshee/gnome-ext-hanabi.git
-
-For GNOME 44 and earlier
-
-git clone https://github.com/jeffshee/gnome-ext-hanabi.git -b legacy
 
 Run the installation script (Require meson)
 
 cd gnome-ext-hanabi
 ./run.sh install
-
 Restart GNOME Shell
-
 Enable the Hanabi extension
 
-Choose your video wallpaper in the extension preference window
 
 
 
