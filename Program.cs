@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -21,7 +22,7 @@ class Program
     private const int SPIF_SENDCHANGE = 0x02;
 
     private const string ApiKey = "aOAqwTWJ3bqA6D7JEqPTrgaSiwB97J9g";
-    private const string BaseApiUrl = "https://wallhaven.cc/api/v1/w/";
+    private const string BaseApiUrl = "https://wallhaven.cc/api/v1/";
     private static readonly HttpClient client = new HttpClient();
     private static readonly List<WallpaperHistoryItem> wallpaperHistory = new List<WallpaperHistoryItem>();
     private static bool isWindows = true;
@@ -40,7 +41,9 @@ class Program
     static async Task Main(string[] args)
     {
         Console.OutputEncoding = Encoding.UTF8;
+        
         Console.CancelKeyPress += (sender, e) => {
+            e.Cancel = true;
             Console.WriteLine("\n\nExiting gracefully...");
             Environment.Exit(0);
         };
@@ -54,20 +57,28 @@ class Program
 
         LoadHistory();
         AutoDetectOS();
-        await CheckForUpdates();
 
         while (true)
         {
-            Console.WriteLine("\n" + "MAIN MENU".Pastel(GetThemeColor("primary")).PastelBg(GetThemeColor("background")));
-            Console.WriteLine("1. 🔍 Search Wallpapers".Pastel(GetThemeColor("menu1")));
+            Console.WriteLine("\n1. 🔍 Search Wallpapers".Pastel(GetThemeColor("menu1")));
             Console.WriteLine("2. 🏞️ Set Default Wallpaper".Pastel(GetThemeColor("menu2")));
             Console.WriteLine("3. 📜 View History".Pastel(GetThemeColor("menu3")));
             Console.WriteLine("4. ⚙️ Settings".Pastel(GetThemeColor("menu4")));
             Console.WriteLine("5. 🎲 Random Wallpaper".Pastel(GetThemeColor("menu5")));
             Console.WriteLine("6. 🔄 Refresh Current".Pastel(GetThemeColor("menu6")));
-            Console.WriteLine("7. 🚪 Exit".Pastel(GetThemeColor("menu7")));
-            Console.Write("\nChoose option: ".Pastel(GetThemeColor("text")));
+            
+            if (isWindows)
+            {
+                Console.WriteLine("7. 📺 VLC Video Wallpaper".Pastel(GetThemeColor("menu7")));
+            }
+            else
+            {
+                Console.WriteLine("7. 🎥 Video Wallpaper".Pastel(GetThemeColor("menu7")));
+            }
+            
+            Console.WriteLine("8. 🚪 Exit".Pastel(GetThemeColor("menu8")));
 
+            Console.Write("\nChoose option: ".Pastel(GetThemeColor("text")));
             string mainChoice = Console.ReadLine()?.Trim() ?? "1";
 
             switch (mainChoice)
@@ -91,6 +102,16 @@ class Program
                     RefreshCurrentWallpaper();
                     break;
                 case "7":
+                    if (isWindows)
+                    {
+                        await SetVLCVideoWallpaper();
+                    }
+                    else
+                    {
+                        await SetHidamariVideoWallpaper();
+                    }
+                    break;
+                case "8":
                     return;
                 default:
                     Console.WriteLine("Invalid choice. Please try again.".Pastel(GetThemeColor("error")));
@@ -114,9 +135,11 @@ class Program
                 "menu5" => "#e74c3c",
                 "menu6" => "#2ecc71",
                 "menu7" => "#e67e22",
+                "menu8" => "#9b59b6",
                 "text" => "#ecf0f1",
                 "success" => "#2ecc71",
                 "error" => "#e74c3c",
+                "warning" => "#f39c12",
                 _ => "#ffffff"
             },
             "forest" => element switch
@@ -130,9 +153,11 @@ class Program
                 "menu5" => "#c0392b",
                 "menu6" => "#27ae60",
                 "menu7" => "#d35400",
+                "menu8" => "#9b59b6",
                 "text" => "#ecf0f1",
                 "success" => "#27ae60",
                 "error" => "#c0392b",
+                "warning" => "#f39c12",
                 _ => "#ffffff"
             },
             "sunset" => element switch
@@ -146,13 +171,313 @@ class Program
                 "menu5" => "#c0392b",
                 "menu6" => "#e67e22",
                 "menu7" => "#3498db",
+                "menu8" => "#9b59b6",
                 "text" => "#ecf0f1",
                 "success" => "#e67e22",
                 "error" => "#c0392b",
+                "warning" => "#f39c12",
                 _ => "#ffffff"
             },
             _ => "#3498db"
         };
+    }
+
+
+private static async Task SetHidamariVideoWallpaper()
+{
+    Console.WriteLine("\n🎥 Video Wallpaper (Linux)".Pastel(GetThemeColor("primary")));
+    
+    try
+    {
+        if (!IsHidamariInstalled())
+        {
+            Console.WriteLine("Hidamari not found.".Pastel(GetThemeColor("error")));
+            Console.WriteLine("Please install Hidamari via Flatpak:".Pastel(GetThemeColor("text")));
+            Console.WriteLine("flatpak install flathub io.github.jeffshee.Hidamari".Pastel(GetThemeColor("text")));
+            return;
+        }
+
+        // Sprawdź czy folder animee istnieje
+        string animePath = "/home/dawid/Obrazy/animee";
+        if (!Directory.Exists(animePath))
+        {
+            Console.WriteLine($"Folder {animePath} not found.".Pastel(GetThemeColor("error")));
+            return;
+        }
+
+        // Znajdź wszystkie pliki MP4 w folderze animee i podfolderach
+        var mp4Files = Directory.GetFiles(animePath, "*.mp4", SearchOption.AllDirectories).ToList();
+        
+        if (mp4Files.Count == 0)
+        {
+            Console.WriteLine($"No MP4 files found in {animePath}".Pastel(GetThemeColor("error")));
+            return;
+        }
+
+        Console.WriteLine($"\nFound {mp4Files.Count} MP4 files:".Pastel(GetThemeColor("success")));
+        for (int i = 0; i < mp4Files.Count; i++)
+        {
+            string fileName = Path.GetFileName(mp4Files[i]);
+            string folderName = Path.GetFileName(Path.GetDirectoryName(mp4Files[i]));
+            Console.WriteLine($"{i + 1}. {fileName} (in {folderName})".Pastel(GetThemeColor("text")));
+        }
+
+        Console.Write($"\nSelect video (1-{mp4Files.Count}): ".Pastel(GetThemeColor("text")));
+        if (!int.TryParse(Console.ReadLine(), out int selectedIndex) || selectedIndex < 1 || selectedIndex > mp4Files.Count)
+        {
+            Console.WriteLine("Invalid selection.".Pastel(GetThemeColor("error")));
+            return;
+        }
+
+        string selectedVideo = mp4Files[selectedIndex - 1];
+        string hidamariFolder = "/home/dawid/Wideo/Hidamari";
+
+        // Utwórz folder Hidamari jeśli nie istnieje
+        if (!Directory.Exists(hidamariFolder))
+        {
+            Directory.CreateDirectory(hidamariFolder);
+        }
+
+        // Usuń poprzednie pliki z folderu Hidamari
+        var existingFiles = Directory.GetFiles(hidamariFolder, "*.mp4");
+        foreach (var file in existingFiles)
+        {
+            try
+            {
+                File.Delete(file);
+                Console.WriteLine($"Removed previous video: {Path.GetFileName(file)}".Pastel(GetThemeColor("text")));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error removing {Path.GetFileName(file)}: {ex.Message}".Pastel(GetThemeColor("error")));
+            }
+        }
+
+        // Skopiuj wybrany plik do folderu Hidamari jako video.mp4
+        string destinationPath = Path.Combine(hidamariFolder, "video.mp4");
+        try
+        {
+            File.Copy(selectedVideo, destinationPath, true);
+            Console.WriteLine($"Copied video folder as: video.mp4".Pastel(GetThemeColor("success")));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error copying video: {ex.Message}".Pastel(GetThemeColor("error")));
+            return;
+        }
+
+        // Uruchom Hidamari z zapętlaniem - z nohup
+
+string fullCommand = "setsid flatpak run io.github.jeffshee.Hidamari -b >/dev/null 2>&1 &";
+
+var process = new Process
+{
+    StartInfo = new ProcessStartInfo
+    {
+        FileName = "/bin/bash",
+        Arguments = $"-c \"{fullCommand}\"",
+        UseShellExecute = false,
+        CreateNoWindow = true
+    }
+};
+process.Start();
+
+
+
+
+        process.Start();
+        
+        // Zapisz informację o video wallpaper w historii
+        wallpaperHistory.Add(new WallpaperHistoryItem {
+            Id = "hidamari_video_" + DateTime.Now.ToString("yyyyMMddHHmmss"),
+            Path = destinationPath,
+            Url = "",
+            Resolution = "Video Wallpaper",
+            SetDate = DateTime.Now,
+            Tags = new List<string> { "video", "mp4", "animated", "hidamari" }
+        });
+        
+        SaveHistory();
+        
+        Console.WriteLine("\n🎥  video wallpaper started!".Pastel(GetThemeColor("success")));
+        Console.WriteLine("💡 Tips:".Pastel(GetThemeColor("text")));
+        Console.WriteLine($"• Playing: {Path.GetFileName(selectedVideo)} (as video.mp4)".Pastel(GetThemeColor("text")));
+        Console.WriteLine("• Video is looping automatically".Pastel(GetThemeColor("text")));
+        Console.WriteLine("• Running in background with nohup".Pastel(GetThemeColor("text")));
+        Console.WriteLine("• Close  from system tray to stop".Pastel(GetThemeColor("text")));
+        Console.WriteLine("\nPress any key to return to menu...".Pastel(GetThemeColor("text")));
+        Console.ReadKey();
+
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error starting : {ex.Message}".Pastel(GetThemeColor("error")));
+    }
+}
+private static bool IsHidamariInstalled()
+{
+    try
+    {
+        var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "flatpak",
+                Arguments = "info io.github.jeffshee.Hidamari",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }
+        };
+        process.Start();
+        process.WaitForExit(2000);
+        return process.ExitCode == 0;
+    }
+    catch 
+    { 
+        return false; 
+    }
+}
+
+    private static async Task SetVLCVideoWallpaper()
+    {
+        try
+        {
+            if (!IsVLCInstalled())
+            {
+                Console.WriteLine("VLC not found. Please install VLC media player first.".Pastel(GetThemeColor("error")));
+                Console.WriteLine("Download from: https://www.videolan.org/vlc/".Pastel(GetThemeColor("text")));
+                return;
+            }
+
+            Console.WriteLine("\n📺 VLC Video Wallpaper".Pastel(GetThemeColor("primary")));
+            Console.WriteLine("1. Select video file".Pastel(GetThemeColor("menu1")));
+            Console.WriteLine("2. Enter video URL".Pastel(GetThemeColor("menu2")));
+            Console.WriteLine("3. Back to main menu".Pastel(GetThemeColor("menu4")));
+            Console.Write("\nChoose option: ".Pastel(GetThemeColor("text")));
+
+            string choice = Console.ReadLine()?.Trim() ?? "1";
+
+            string videoPath = "";
+
+            switch (choice)
+            {
+                case "1":
+                    Console.Write("Enter path to video file: ");
+                    videoPath = Console.ReadLine()?.Trim() ?? "";
+                    if (!File.Exists(videoPath))
+                    {
+                        Console.WriteLine("Video file not found.".Pastel(GetThemeColor("error")));
+                        return;
+                    }
+                    break;
+                case "2":
+                    Console.Write("Enter video URL: ");
+                    string videoUrl = Console.ReadLine()?.Trim() ?? "";
+                    if (string.IsNullOrEmpty(videoUrl))
+                    {
+                        Console.WriteLine("Invalid URL.".Pastel(GetThemeColor("error")));
+                        return;
+                    }
+                    videoPath = videoUrl;
+                    break;
+                case "3":
+                    return;
+                default:
+                    Console.WriteLine("Invalid choice.".Pastel(GetThemeColor("error")));
+                    return;
+            }
+
+            Console.WriteLine("\nVLC Options:".Pastel(GetThemeColor("primary")));
+            Console.WriteLine("1. Play once".Pastel(GetThemeColor("menu1")));
+            Console.WriteLine("2. Loop video".Pastel(GetThemeColor("menu2")));
+            Console.WriteLine("3. Loop with audio".Pastel(GetThemeColor("menu3")));
+            Console.Write("Choose option: ".Pastel(GetThemeColor("text")));
+
+            string vlcChoice = Console.ReadLine()?.Trim() ?? "2";
+
+            string vlcArgs = "";
+            switch (vlcChoice)
+            {
+                case "1":
+                    vlcArgs = $"\"{videoPath}\" --video-wallpaper --no-audio --no-loop";
+                    break;
+                case "2":
+                    vlcArgs = $"\"{videoPath}\" --video-wallpaper --no-audio --loop";
+                    break;
+                case "3":
+                    vlcArgs = $"\"{videoPath}\" --video-wallpaper --loop";
+                    break;
+                default:
+                    vlcArgs = $"\"{videoPath}\" --video-wallpaper --no-audio --loop";
+                    break;
+            }
+
+            string vlcPath = GetVLCPath();
+            if (string.IsNullOrEmpty(vlcPath))
+            {
+                Console.WriteLine("VLC path not found.".Pastel(GetThemeColor("error")));
+                return;
+            }
+
+            Console.WriteLine($"Starting VLC with: {vlcArgs}".Pastel(GetThemeColor("text")));
+
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = vlcPath,
+                    Arguments = vlcArgs,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            
+            // Zapisz informację o video wallpaper w historii
+            wallpaperHistory.Add(new WallpaperHistoryItem {
+                Id = "vlc_video_" + DateTime.Now.ToString("yyyyMMddHHmmss"),
+                Path = videoPath,
+                Url = videoPath.StartsWith("http") ? videoPath : "",
+                Resolution = "Video Wallpaper",
+                SetDate = DateTime.Now,
+                Tags = new List<string> { "video", "vlc", "animated" }
+            });
+            
+            SaveHistory();
+            
+            Console.WriteLine("\n🎥 VLC video wallpaper started!".Pastel(GetThemeColor("success")));
+            Console.WriteLine("💡 Tips:".Pastel(GetThemeColor("text")));
+            Console.WriteLine("• VLC will run in background".Pastel(GetThemeColor("text")));
+            Console.WriteLine("• Close VLC to stop the wallpaper".Pastel(GetThemeColor("text")));
+            Console.WriteLine("• Right-click VLC in system tray for options".Pastel(GetThemeColor("text")));
+            Console.WriteLine("\nPress any key to return to menu...".Pastel(GetThemeColor("text")));
+            Console.ReadKey();
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error starting VLC: {ex.Message}".Pastel(GetThemeColor("error")));
+        }
+    }
+
+    private static bool IsVLCInstalled()
+    {
+        return !string.IsNullOrEmpty(GetVLCPath());
+    }
+
+    private static string GetVLCPath()
+    {
+        string[] possiblePaths = {
+            @"C:\Program Files\VideoLAN\VLC\vlc.exe",
+            @"C:\Program Files (x86)\VideoLAN\VLC\vlc.exe",
+            Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\VideoLAN\VLC\vlc.exe"),
+            Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\VideoLAN\VLC\vlc.exe")
+        };
+
+        return possiblePaths.FirstOrDefault(File.Exists);
     }
 
     private static void RefreshCurrentWallpaper()
@@ -331,10 +656,10 @@ class Program
         Console.WriteLine(@"█████╗  ███████║██║     ██║██████╔╝███████║███████╗█████╗  ".Pastel(GetThemeColor("primary")));
         Console.WriteLine(@"██╔══╝  ██╔══██║██║     ██║██╔═══╝ ██╔══██║╚════██║██╔══╝  ".Pastel(GetThemeColor("primary")));
         Console.WriteLine(@"██║     ██║  ██║███████╗██║██║     ██║  ██║███████║███████╗".Pastel(GetThemeColor("primary")));
-        Console.WriteLine(@"╚═╝     ╚═╝  ╚═╝╚══════╝╚═╝╚═╝     ╚═╝  ╚═╝╚══════╝╚══════╝".Pastel(GetThemeColor("primary")));
+        Console.WriteLine(@"╚═╝     ╚═╝  ╚═╝╚══════╝╚═╚╚═╝     ╚═╝  ╚═╝╚══════╝╚══════╝".Pastel(GetThemeColor("primary")));
         Console.WriteLine();
         Console.WriteLine("=".Repeat(60).Pastel(GetThemeColor("background")));
-        Console.WriteLine($"🌄 Wallpaper Changer v2.0 | Cache: {wallpaperCachePath}".Pastel(GetThemeColor("text")));
+        Console.WriteLine($"🌄 Wallpaper Changer v3.0 | Cache: {wallpaperCachePath}".Pastel(GetThemeColor("text")));
         Console.WriteLine("=".Repeat(60).Pastel(GetThemeColor("background")));
     }
 
@@ -342,30 +667,6 @@ class Program
     {
         isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
         Console.WriteLine($"\nDetected OS: {(isWindows ? "Windows" : "Linux")}".Pastel(GetThemeColor("success")));
-    }
-
-    private static async Task CheckForUpdates()
-    {
-        try
-        {
-            var response = await client.GetAsync("https://api.github.com/repos/yourusername/wallpaper-changer/releases/latest");
-            if (response.IsSuccessStatusCode)
-            {
-                var json = await response.Content.ReadAsStringAsync();
-                var release = JObject.Parse(json);
-                var latestVersion = release["tag_name"]?.ToString();
-                
-                if (!string.IsNullOrEmpty(latestVersion) && latestVersion != "v2.0")
-                {
-                    Console.WriteLine($"\n⚠️ Update available: v2.0 → {latestVersion}".Pastel("#f39c12"));
-                    Console.WriteLine("Download: https://github.com/yourusername/wallpaper-changer/releases".Pastel(GetThemeColor("primary")));
-                }
-            }
-        }
-        catch
-        {
-            // Ignore update check errors
-        }
     }
 
     private static void LoadHistory()
@@ -454,8 +755,14 @@ class Program
                     {
                         try
                         {
-                            Directory.Delete(wallpaperCachePath, true);
-                            Directory.CreateDirectory(wallpaperCachePath);
+                            var files = Directory.GetFiles(wallpaperCachePath);
+                            foreach (var file in files)
+                            {
+                                if (!file.EndsWith("history.json"))
+                                {
+                                    File.Delete(file);
+                                }
+                            }
                             Console.WriteLine("Cache cleared successfully".Pastel(GetThemeColor("success")));
                         }
                         catch
@@ -783,19 +1090,19 @@ class Program
             if (wp.Resolution.Contains("1920x1080") || wp.Resolution.Contains("2560x1440") || 
                 wp.Resolution.Contains("3840x2160"))
             {
-                ratioIcon = "📺"; // 16:9
+                ratioIcon = "📺";
             }
             else if (wp.Resolution.Contains("1920x1200") || wp.Resolution.Contains("2560x1600"))
             {
-                ratioIcon = "💻"; // 16:10
+                ratioIcon = "💻";
             }
             else if (wp.Resolution.Contains("2560x1080") || wp.Resolution.Contains("3440x1440"))
             {
-                ratioIcon = "🎬"; // 21:9
+                ratioIcon = "🎬";
             }
             else if (wp.Resolution.Contains("1600x1200") || wp.Resolution.Contains("2048x1536"))
             {
-                ratioIcon = "📱"; // 4:3
+                ratioIcon = "📱";
             }
             
             Console.WriteLine($"{i + 1}. {wp.Id} {purityBadge} {ratioIcon} | {wp.Resolution} | 🌟 {wp.Favorites} | 👁️ {wp.Views}");
