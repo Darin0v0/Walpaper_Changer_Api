@@ -43,7 +43,11 @@ Linux video wallpaper requires Hidamari installed via Flatpak
 Works on Wayland and X11 sessions
 
 
-https://youtu.be/zK1Q2iegv5M
+https://youtu.be/kY4GelCmky4  1.2 Animated Walpaper
 
 
-https://youtu.be/l82xNVrsUWc  wersion v
+https://youtu.be/zK1Q2iegv5M 1.0
+
+
+https://youtu.be/l82xNVrsUWc  Wersion V 1.1
+
