@@ -12,7 +12,7 @@ It supports both static and animated wallpapers, including video wallpapers on L
 
 🌄 Cross-platform: Windows and Linux support
 
-🎥 Animated wallpapers: Video wallpapers on Linux (Hidamari) and Windows
+🎥 Animated wallpapers: Video wallpapers on Linux (Hanabi) and Windows
 
 🔗 API access: Programmatically change wallpapers from your own applications or scripts
 
