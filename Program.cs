@@ -274,145 +274,136 @@ private static async Task SetHanabiVideoWallpaper()
 }
 
 
-    private static async Task SetVLCVideoWallpaper()
+private static async Task SetVLCVideoWallpaper()
+{
+    try
     {
-        try
+        string vlcPath = @"C:\Users\prac1\Music\vlc-3.0.21\vlc.exe";
+        if (!File.Exists(vlcPath))
         {
-            if (!IsVLCInstalled())
-            {
-                Console.WriteLine("VLC not found. Please install VLC media player first.".Pastel(GetThemeColor("error")));
-                Console.WriteLine("Download from: https://www.videolan.org/vlc/".Pastel(GetThemeColor("text")));
-                return;
-            }
-
-            Console.WriteLine("\n📺 VLC Video Wallpaper".Pastel(GetThemeColor("primary")));
-            Console.WriteLine("1. Select video file".Pastel(GetThemeColor("menu1")));
-            Console.WriteLine("2. Enter video URL".Pastel(GetThemeColor("menu2")));
-            Console.WriteLine("3. Back to main menu".Pastel(GetThemeColor("menu4")));
-            Console.Write("\nChoose option: ".Pastel(GetThemeColor("text")));
-
-            string choice = Console.ReadLine()?.Trim() ?? "1";
-
-            string videoPath = "";
-
-            switch (choice)
-            {
-                case "1":
-                    Console.Write("Enter path to video file: ");
-                    videoPath = Console.ReadLine()?.Trim() ?? "";
-                    if (!File.Exists(videoPath))
-                    {
-                        Console.WriteLine("Video file not found.".Pastel(GetThemeColor("error")));
-                        return;
-                    }
-                    break;
-                case "2":
-                    Console.Write("Enter video URL: ");
-                    string videoUrl = Console.ReadLine()?.Trim() ?? "";
-                    if (string.IsNullOrEmpty(videoUrl))
-                    {
-                        Console.WriteLine("Invalid URL.".Pastel(GetThemeColor("error")));
-                        return;
-                    }
-                    videoPath = videoUrl;
-                    break;
-                case "3":
-                    return;
-                default:
-                    Console.WriteLine("Invalid choice.".Pastel(GetThemeColor("error")));
-                    return;
-            }
-
-            Console.WriteLine("\nVLC Options:".Pastel(GetThemeColor("primary")));
-            Console.WriteLine("1. Play once".Pastel(GetThemeColor("menu1")));
-            Console.WriteLine("2. Loop video".Pastel(GetThemeColor("menu2")));
-            Console.WriteLine("3. Loop with audio".Pastel(GetThemeColor("menu3")));
-            Console.Write("Choose option: ".Pastel(GetThemeColor("text")));
-
-            string vlcChoice = Console.ReadLine()?.Trim() ?? "2";
-
-            string vlcArgs = "";
-            switch (vlcChoice)
-            {
-                case "1":
-                    vlcArgs = $"\"{videoPath}\" --video-wallpape --no-video-title-show --no-audio --no-loop";
-                    break;
-                case "2":
-                    vlcArgs = $"\"{videoPath}\" --video-wallpaper ---no-video-title-show --no-audio --loop";
-                    break;
-                case "3":
-                    vlcArgs = $"\"{videoPath}\" --video-wallpaper--no-video-title-show --loop";
-                    break;
-                default:
-                    vlcArgs = $"\"{videoPath}\" --video-wallpaper --no-video-title-show --no-audio --loop";
-                    break;
-            }
-
-            string vlcPath = GetVLCPath();
-            if (string.IsNullOrEmpty(vlcPath))
-            {
-                Console.WriteLine("VLC path not found.".Pastel(GetThemeColor("error")));
-                return;
-            }
-
-            Console.WriteLine($"Starting VLC with: {vlcArgs}".Pastel(GetThemeColor("text")));
-
-            var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = vlcPath,
-                    Arguments = vlcArgs,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
-
-            process.Start();
-            
-            // Zapisz informację o video wallpaper w historii
-            wallpaperHistory.Add(new WallpaperHistoryItem {
-                Id = "vlc_video_" + DateTime.Now.ToString("yyyyMMddHHmmss"),
-                Path = videoPath,
-                Url = videoPath.StartsWith("http") ? videoPath : "",
-                Resolution = "Video Wallpaper",
-                SetDate = DateTime.Now,
-                Tags = new List<string> { "video", "vlc", "animated" }
-            });
-            
-            SaveHistory();
-            
-            Console.WriteLine("\n🎥 VLC video wallpaper started!".Pastel(GetThemeColor("success")));
-            Console.WriteLine("💡 Tips:".Pastel(GetThemeColor("text")));
-            Console.WriteLine("• VLC will run in background".Pastel(GetThemeColor("text")));
-            Console.WriteLine("• Close VLC to stop the wallpaper".Pastel(GetThemeColor("text")));
-            Console.WriteLine("• Right-click VLC in system tray for options".Pastel(GetThemeColor("text")));
-            Console.WriteLine("\nPress any key to return to menu...".Pastel(GetThemeColor("text")));
-            Console.ReadKey();
-
+            Console.WriteLine("❌ VLC not found at the specified path.".Pastel(GetThemeColor("error")));
+            Console.WriteLine($"Expected: {vlcPath}".Pastel(GetThemeColor("text")));
+            return;
         }
-        catch (Exception ex)
+
+        string animeFolder = @"C:\Users\prac1\Videos\animee";
+        if (!Directory.Exists(animeFolder))
         {
-            Console.WriteLine($"Error starting VLC: {ex.Message}".Pastel(GetThemeColor("error")));
+            Console.WriteLine("❌ Folder 'animee' not found.".Pastel(GetThemeColor("error")));
+            return;
         }
+
+        var videoFiles = Directory.GetFiles(animeFolder, "*.*", SearchOption.TopDirectoryOnly)
+            .Where(f => f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)
+                     || f.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase)
+                     || f.EndsWith(".avi", StringComparison.OrdinalIgnoreCase)
+                     || f.EndsWith(".mov", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (videoFiles.Count == 0)
+        {
+            Console.WriteLine("❌ No video files found in the 'animee' folder.".Pastel(GetThemeColor("error")));
+            return;
+        }
+
+        Console.WriteLine("\n📺 Available videos in 'animee' folder:".Pastel(GetThemeColor("primary")));
+        for (int i = 0; i < videoFiles.Count; i++)
+        {
+            Console.WriteLine($"{i + 1}. {Path.GetFileName(videoFiles[i])}".Pastel(GetThemeColor("menu1")));
+        }
+
+        Console.Write("\nChoose video number: ".Pastel(GetThemeColor("text")));
+        if (!int.TryParse(Console.ReadLine(), out int selectedIndex) || selectedIndex < 1 || selectedIndex > videoFiles.Count)
+        {
+            Console.WriteLine("❌ Invalid selection.".Pastel(GetThemeColor("error")));
+            return;
+        }
+
+        string videoPath = videoFiles[selectedIndex - 1];
+
+        Console.WriteLine("\n🔁 VLC Playback Options:".Pastel(GetThemeColor("primary")));
+        Console.WriteLine("1. Play once".Pastel(GetThemeColor("menu1")));
+        Console.WriteLine("2. Loop video".Pastel(GetThemeColor("menu2")));
+        Console.WriteLine("3. Loop with audio".Pastel(GetThemeColor("menu3")));
+        Console.Write("Choose option: ".Pastel(GetThemeColor("text")));
+
+        string vlcChoice = Console.ReadLine()?.Trim() ?? "2";
+
+        // Ustawienia VLC
+        string commonArgs = $"\"{videoPath}\" --video-wallpaper --no-video-title-show --qt-start-minimized --no-qt-privacy-ask --input-repeat=9999";
+
+
+        string vlcArgs = vlcChoice switch
+        {
+            "1" => $"{commonArgs} --no-audio --no-loop",
+            "2" => $"{commonArgs} --no-audio --loop",
+            "3" => $"{commonArgs} --loop",
+            _   => $"{commonArgs} --no-audio --loop",
+        };
+
+        Console.WriteLine($"\n🚀 Starting VLC with arguments:\n{vlcArgs}".Pastel(GetThemeColor("text")));
+
+        var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = vlcPath,
+                Arguments = vlcArgs,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            }
+        };
+
+        process.Start();
+
+        // Dodaj do historii
+        wallpaperHistory.Add(new WallpaperHistoryItem
+        {
+            Id = "vlc_video_" + DateTime.Now.ToString("yyyyMMddHHmmss"),
+            Path = videoPath,
+            Url = "",
+            Resolution = "Video Wallpaper",
+            SetDate = DateTime.Now,
+            Tags = new List<string> { "video", "vlc", "animated" }
+        });
+
+        SaveHistory();
+
+        Console.WriteLine("\n🎥 VLC video wallpaper started!".Pastel(GetThemeColor("success")));
+        Console.WriteLine("💡 Tips:".Pastel(GetThemeColor("text")));
+        Console.WriteLine("• VLC runs in the background.".Pastel(GetThemeColor("text")));
+        Console.WriteLine("• Close VLC to stop the wallpaper.".Pastel(GetThemeColor("text")));
+        Console.WriteLine("• Right-click VLC tray icon for more options.".Pastel(GetThemeColor("text")));
+        Console.WriteLine("\nPress any key to return to menu...".Pastel(GetThemeColor("text")));
+        Console.ReadKey();
     }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"❌ Error starting VLC: {ex.Message}".Pastel(GetThemeColor("error")));
+    }
+}
+
+
 
     private static bool IsVLCInstalled()
     {
         return !string.IsNullOrEmpty(GetVLCPath());
     }
 
-    private static string GetVLCPath()
-    {
-        string[] possiblePaths = {
-            @"C:\Program Files\VideoLAN\VLC\vlc.exe",
-            @"C:\Program Files (x86)\VideoLAN\VLC\vlc.exe",
-            Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\VideoLAN\VLC\vlc.exe"),
-            Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\VideoLAN\VLC\vlc.exe")
-        };
+   private static string GetVLCPath()
+{
+    string[] possiblePaths = {
+        @"C:\Users\prac1\Music\vlc-3.0.21\vlc.exe", // Twoja ścieżka do VLC portable
+        @"C:\Program Files\VideoLAN\VLC\vlc.exe",
+        @"C:\Program Files (x86)\VideoLAN\VLC\vlc.exe",
+        Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\VideoLAN\VLC\vlc.exe"),
+        Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\VideoLAN\VLC\vlc.exe")
+    };
 
-        return possiblePaths.FirstOrDefault(File.Exists);
-    }
+    return possiblePaths.FirstOrDefault(File.Exists);
+}
+
 
     private static void RefreshCurrentWallpaper()
     {
